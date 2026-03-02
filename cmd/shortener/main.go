@@ -13,7 +13,11 @@ func main() {
 	srv := service.NewURLService(repo)
 	h := handler.NewURLHandler(srv, "http://localhost:8080")
 
-	err := http.ListenAndServe(":8080", h)
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /", h.PostHandler)
+	mux.HandleFunc("GET /", h.GetHandler)
+
+	err := http.ListenAndServe(":8080", mux)
 	if err != nil {
 		panic(err)
 	}
