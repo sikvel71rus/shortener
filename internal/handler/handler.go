@@ -1,14 +1,15 @@
 package handler
 
-import (
-	"github.com/sikvel71rus/shortener.git/internal/service"
-)
+type URLService interface {
+	GetOriginalURL(id string) (string, error)
+	ShortenURL(url string) string
+}
 
 type URLHandler struct {
-	srv service.Shortener
+	srv URLService
 	URL string
 }
 
-func NewURLHandler(srv service.Shortener, URL string) *URLHandler {
+func NewURLHandler(srv URLService, URL string) *URLHandler {
 	return &URLHandler{srv: srv, URL: URL}
 }

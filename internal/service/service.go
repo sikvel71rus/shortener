@@ -2,21 +2,20 @@ package service
 
 import (
 	"errors"
-	"github.com/sikvel71rus/shortener.git/internal/repository"
 	"math/rand"
 	"strings"
 )
 
-type Shortener interface {
-	ShortenURL(url string) string
-	GetOriginalURL(id string) (string, error)
+type URLRepo interface {
+	SaveURL(id string, url string)
+	GetURL(id string) (string, bool)
 }
 
 type URLService struct {
-	repo repository.URLRepo
+	repo URLRepo
 }
 
-func NewURLService(repo repository.URLRepo) *URLService {
+func NewURLService(repo URLRepo) *URLService {
 	return &URLService{repo: repo}
 }
 

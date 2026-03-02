@@ -1,10 +1,5 @@
 package repository
 
-type URLRepo interface {
-	SaveURL(id string, url string)
-	GetURL(id string) (string, bool)
-}
-
 type MemoryRepo struct {
 	urls map[string]string
 }
