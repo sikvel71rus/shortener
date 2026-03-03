@@ -118,7 +118,7 @@ func TestURLHandler_PostHandler(t *testing.T) {
 			request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tt.body))
 			w := httptest.NewRecorder()
 
-			h.PostUrlHandler(w, request)
+			h.PostURLHandler(w, request)
 
 			result := w.Result()
 			defer result.Body.Close()

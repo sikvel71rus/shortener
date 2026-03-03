@@ -19,7 +19,7 @@ func main() {
 
 	r := chi.NewRouter()
 
-	r.Post("/", h.PostUrlHandler)
+	r.Post("/", h.PostURLHandler)
 	r.Get("/{id}", h.GetURLHandler)
 
 	err := http.ListenAndServe(flagCfg.ServerAddress, r)
