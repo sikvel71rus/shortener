@@ -7,9 +7,8 @@ type URLService interface {
 
 type URLHandler struct {
 	srv URLService
-	URL string
 }
 
-func NewURLHandler(srv URLService, URL string) *URLHandler {
-	return &URLHandler{srv: srv, URL: URL}
+func NewURLHandler(srv URLService) *URLHandler {
+	return &URLHandler{srv: srv}
 }

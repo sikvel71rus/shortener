@@ -66,12 +66,12 @@ func TestURLHandler_GetHandler(t *testing.T) {
 					return tt.mockRes, tt.mockErr
 				},
 			}
-			h := NewURLHandler(srv, "http://localhost:8080")
+			h := NewURLHandler(srv)
 
 			request := httptest.NewRequest(http.MethodGet, tt.request, nil)
 			w := httptest.NewRecorder()
 
-			h.GetHandler(w, request)
+			h.GetURLHandler(w, request)
 
 			result := w.Result()
 			defer result.Body.Close()
@@ -97,7 +97,7 @@ func TestURLHandler_PostHandler(t *testing.T) {
 		{
 			name:   "positive POST test #1",
 			body:   "https://practicum.yandex.ru/",
-			mockID: "aaBBBaa",
+			mockID: "http://localhost:8080/aaBBBaa",
 			want: want{
 				statusCode:  http.StatusCreated,
 				contentType: "text/plain",
@@ -113,12 +113,12 @@ func TestURLHandler_PostHandler(t *testing.T) {
 					return tt.mockID
 				},
 			}
-			h := NewURLHandler(srv, "http://localhost:8080")
+			h := NewURLHandler(srv)
 
 			request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tt.body))
 			w := httptest.NewRecorder()
 
-			h.PostHandler(w, request)
+			h.PostUrlHandler(w, request)
 
 			result := w.Result()
 			defer result.Body.Close()

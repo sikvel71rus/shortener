@@ -13,11 +13,12 @@ type URLRepo interface {
 }
 
 type URLService struct {
-	repo URLRepo
+	repo    URLRepo
+	baseURL string
 }
 
-func NewURLService(repo URLRepo) *URLService {
-	return &URLService{repo: repo}
+func NewURLService(repo URLRepo, baseURL string) *URLService {
+	return &URLService{repo: repo, baseURL: baseURL}
 }
 
 func (s *URLService) ShortenURL(url string) string {
@@ -30,7 +31,7 @@ func (s *URLService) ShortenURL(url string) string {
 	}
 
 	s.repo.SaveURL(id, url)
-	return id
+	return s.baseURL + "/" + id
 }
 
 func (s *URLService) GetOriginalURL(id string) (string, error) {

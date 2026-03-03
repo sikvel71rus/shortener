@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-func (h *URLHandler) PostHandler(w http.ResponseWriter, r *http.Request) {
+func (h *URLHandler) PostURLHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -15,5 +15,5 @@ func (h *URLHandler) PostHandler(w http.ResponseWriter, r *http.Request) {
 	id := h.srv.ShortenURL(string(body))
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(w, "%s/%s", h.URL, id)
+	fmt.Fprintf(w, "%s", id)
 }

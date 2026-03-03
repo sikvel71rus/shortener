@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/go-chi/chi/v5"
+	"github.com/sikvel71rus/shortener.git/internal/config/flag"
 	"github.com/sikvel71rus/shortener.git/internal/handler"
 	"github.com/sikvel71rus/shortener.git/internal/repository"
 	"github.com/sikvel71rus/shortener.git/internal/service"
@@ -10,16 +11,18 @@ import (
 
 func main() {
 
-	repo := repository.NewMemoryRepo()
-	srv := service.NewURLService(repo)
-	h := handler.NewURLHandler(srv, "http://localhost:8080")
+	flagCfg := flag.Parse()
+
+	repo := repository.NewMapURLRepo()
+	srv := service.NewURLService(repo, flagCfg.BaseURL)
+	h := handler.NewURLHandler(srv)
 
 	r := chi.NewRouter()
 
-	r.Post("/", h.PostHandler)
-	r.Get("/{id}", h.GetHandler)
+	r.Post("/", h.PostUrlHandler)
+	r.Get("/{id}", h.GetURLHandler)
 
-	err := http.ListenAndServe(":8080", r)
+	err := http.ListenAndServe(flagCfg.ServerAddress, r)
 	if err != nil {
 		panic(err)
 	}
