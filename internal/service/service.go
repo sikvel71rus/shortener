@@ -24,8 +24,7 @@ func (s *URLService) ShortenURL(url string) string {
 	id := ""
 	for {
 		id = generateID()
-		exist := s.repo.CheckIfURLExist(id)
-		if exist == false {
+		if !s.repo.CheckIfURLExist(id) {
 			break
 		}
 	}
