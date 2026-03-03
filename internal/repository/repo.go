@@ -16,3 +16,8 @@ func (r *MemoryRepo) GetURL(id string) (string, bool) {
 	url, ok := r.urls[id]
 	return url, ok
 }
+
+func (r *MemoryRepo) CheckIfURLExist(id string) bool {
+	_, ok := r.urls[id]
+	return ok
+}

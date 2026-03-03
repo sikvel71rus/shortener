@@ -9,6 +9,7 @@ import (
 type URLRepo interface {
 	SaveURL(id string, url string)
 	GetURL(id string) (string, bool)
+	CheckIfURLExist(id string) bool
 }
 
 type URLService struct {
@@ -20,7 +21,14 @@ func NewURLService(repo URLRepo) *URLService {
 }
 
 func (s *URLService) ShortenURL(url string) string {
-	id := generateID()
+	id := ""
+	for {
+		id = generateID()
+		exist := s.repo.CheckIfURLExist(id)
+		if exist == false {
+			break
+		}
+	}
 
 	s.repo.SaveURL(id, url)
 	return id
