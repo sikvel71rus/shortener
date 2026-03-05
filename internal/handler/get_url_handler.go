@@ -1,9 +1,12 @@
 package handler
 
-import "net/http"
+import (
+	"github.com/go-chi/chi/v5"
+	"net/http"
+)
 
 func (h *URLHandler) GetURLHandler(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Path[1:]
+	id := chi.URLParam(r, "id")
 	url, err := h.srv.GetOriginalURL(id)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
