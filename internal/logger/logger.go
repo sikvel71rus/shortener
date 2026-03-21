@@ -66,7 +66,7 @@ func RequestLogger(h http.Handler) http.Handler {
 
 		duration := time.Since(start)
 
-		Log.Debug("got incoming HTTP request",
+		Log.Info("got incoming HTTP request",
 			zap.String("uri", r.RequestURI),
 			zap.String("method", r.Method),
 			zap.Duration("duration", duration),
