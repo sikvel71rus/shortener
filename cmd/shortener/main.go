@@ -30,6 +30,7 @@ func main() {
 	r.Use(logger.RequestLogger)
 
 	r.Post("/", h.PostURLHandler)
+	r.Post("/api/shorten", h.ShortenJSONHandler)
 	r.Get("/{id}", h.GetURLHandler)
 
 	err := http.ListenAndServe(starterCfg.ServerAddress, r)
