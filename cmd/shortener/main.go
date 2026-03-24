@@ -20,10 +20,14 @@ func main() {
 		panic(err)
 	}
 
-	repo := repository.NewMapURLRepo()
+	repo, err := repository.NewMapURLRepo(starterCfg.FileStoragePath)
+	if err != nil {
+		panic(err)
+	}
+
 	srv := service.NewURLService(repo, starterCfg.BaseURL)
 	h := handler.NewURLHandler(srv)
-
+	defer repo.Close()
 	r := chi.NewRouter()
 
 	log.Printf("Сервер запущен на %s, базовый адрес: %s", starterCfg.ServerAddress, starterCfg.BaseURL)
@@ -35,7 +39,7 @@ func main() {
 	r.Post("/api/shorten", h.ShortenJSONHandler)
 	r.Get("/{id}", h.GetURLHandler)
 
-	err := http.ListenAndServe(starterCfg.ServerAddress, r)
+	err = http.ListenAndServe(starterCfg.ServerAddress, r)
 	if err != nil {
 		panic(err)
 	}
