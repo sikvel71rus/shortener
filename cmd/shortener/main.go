@@ -5,6 +5,7 @@ import (
 	"github.com/sikvel71rus/shortener.git/internal/config/starter"
 	"github.com/sikvel71rus/shortener.git/internal/handler"
 	"github.com/sikvel71rus/shortener.git/internal/logger"
+	"github.com/sikvel71rus/shortener.git/internal/middleware"
 	"github.com/sikvel71rus/shortener.git/internal/repository"
 	"github.com/sikvel71rus/shortener.git/internal/service"
 	"log"
@@ -28,6 +29,7 @@ func main() {
 	log.Printf("Сервер запущен на %s, базовый адрес: %s", starterCfg.ServerAddress, starterCfg.BaseURL)
 
 	r.Use(logger.RequestLogger)
+	r.Use(middleware.GzipMiddleware)
 
 	r.Post("/", h.PostURLHandler)
 	r.Post("/api/shorten", h.ShortenJSONHandler)
