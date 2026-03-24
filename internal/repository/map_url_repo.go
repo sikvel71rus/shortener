@@ -31,13 +31,13 @@ func NewMapURLRepo(filePath string) (*MapURLRepo, error) {
 			if err != nil {
 				break
 			}
-			if record != nil {
-				repo.urls[record.ShortURL] = record.OriginalURL
-
-				id, _ := strconv.Atoi(record.UUID)
-				if id > repo.counter {
-					repo.counter = id
-				}
+			if record == nil {
+				break
+			}
+			repo.urls[record.ShortURL] = record.OriginalURL
+			id, _ := strconv.Atoi(record.UUID)
+			if id > repo.counter {
+				repo.counter = id
 			}
 		}
 
