@@ -45,6 +45,9 @@ func (c *Consumer) ReadEvent() (*Record, error) {
 }
 
 func (c *Consumer) Close() error {
+	if c.file == nil {
+		return nil
+	}
 	return c.file.Close()
 }
 
@@ -70,5 +73,8 @@ func (p *Producer) WriteEvent(record *Record) error {
 }
 
 func (p *Producer) Close() error {
+	if p.file == nil {
+		return nil
+	}
 	return p.file.Close()
 }
