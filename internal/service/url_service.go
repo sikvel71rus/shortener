@@ -7,7 +7,7 @@ import (
 )
 
 type URLRepo interface {
-	SaveURL(id string, url string)
+	SaveURL(id string, originalURL string) error
 	GetURL(id string) (string, bool)
 	CheckIfURLExist(id string) bool
 }
