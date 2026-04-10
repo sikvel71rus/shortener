@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"github.com/go-chi/chi/v5"
 	"github.com/sikvel71rus/shortener.git/internal/config/starter"
 	"github.com/sikvel71rus/shortener.git/internal/handler"
@@ -20,6 +21,16 @@ func main() {
 		panic(err)
 	}
 
+	var db *sql.DB
+	if starterCfg.DatabaseDSN != "" {
+		var err error
+		db, err = sql.Open("pgx", starterCfg.DatabaseDSN)
+		if err != nil {
+			log.Fatalf("Unable to connect to database: %v\n", err)
+		}
+		defer db.Close()
+	}
+
 	repo, err := repository.NewMapURLRepo(starterCfg.FileStoragePath)
 	if err != nil {
 		panic(err)
@@ -27,6 +38,8 @@ func main() {
 
 	srv := service.NewURLService(repo, starterCfg.BaseURL)
 	h := handler.NewURLHandler(srv)
+	pingHandler := handler.PingHandler(db)
+
 	defer repo.Close()
 	r := chi.NewRouter()
 
@@ -38,6 +51,7 @@ func main() {
 	r.Post("/", h.PostURLHandler)
 	r.Post("/api/shorten", h.ShortenJSONHandler)
 	r.Get("/{id}", h.GetURLHandler)
+	r.Get("/ping", pingHandler)
 
 	err = http.ListenAndServe(starterCfg.ServerAddress, r)
 	if err != nil {
