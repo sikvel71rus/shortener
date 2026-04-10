@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"github.com/go-chi/chi/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/sikvel71rus/shortener.git/internal/config/starter"
 	"github.com/sikvel71rus/shortener.git/internal/handler"
 	"github.com/sikvel71rus/shortener.git/internal/logger"
