@@ -12,7 +12,13 @@ func (h *URLHandler) PostURLHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	id := h.srv.ShortenURL(string(body))
+
+	id, err := h.srv.ShortenURL(r.Context(), string(body))
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 	fmt.Fprintf(w, "%s", id)

@@ -1,8 +1,11 @@
 package handler
 
+import "context"
+
 type URLService interface {
-	GetOriginalURL(id string) (string, error)
-	ShortenURL(url string) string
+	GetOriginalURL(ctx context.Context, id string) (string, error)
+	ShortenURL(ctx context.Context, url string) (string, error)
+	Ping(ctx context.Context) error
 }
 
 type URLHandler struct {

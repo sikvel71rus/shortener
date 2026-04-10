@@ -1,10 +1,13 @@
 package repository
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"github.com/sikvel71rus/shortener.git/internal/storage"
 	"strconv"
 	"sync"
+
+	"github.com/sikvel71rus/shortener.git/internal/storage"
 )
 
 type MapURLRepo struct {
@@ -51,7 +54,7 @@ func NewMapURLRepo(filePath string) (*MapURLRepo, error) {
 	return repo, nil
 }
 
-func (r *MapURLRepo) SaveURL(id, originalURL string) error {
+func (r *MapURLRepo) SaveURL(ctx context.Context, id, originalURL string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -72,20 +75,30 @@ func (r *MapURLRepo) SaveURL(id, originalURL string) error {
 	return nil
 }
 
-func (r *MapURLRepo) Close() error {
-	return r.producer.Close()
-}
-
-func (r *MapURLRepo) GetURL(id string) (string, bool) {
+func (r *MapURLRepo) GetURL(ctx context.Context, id string) (string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	url, ok := r.urls[id]
-	return url, ok
+	if !ok {
+		return "", errors.New("not found")
+	}
+	return url, nil
 }
 
-func (r *MapURLRepo) CheckIfURLExist(id string) bool {
+func (r *MapURLRepo) CheckIfURLExist(ctx context.Context, id string) (bool, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	_, ok := r.urls[id]
-	return ok
+	return ok, nil
+}
+
+func (r *MapURLRepo) Ping(ctx context.Context) error {
+	return nil
+}
+
+func (r *MapURLRepo) Close() error {
+	if r.producer != nil {
+		return r.producer.Close()
+	}
+	return nil
 }

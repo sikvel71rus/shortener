@@ -1,15 +1,17 @@
 package service
 
 import (
-	"errors"
+	"context"
 	"math/rand"
 	"strings"
 )
 
 type URLRepo interface {
-	SaveURL(id string, originalURL string) error
-	GetURL(id string) (string, bool)
-	CheckIfURLExist(id string) bool
+	SaveURL(ctx context.Context, id string, originalURL string) error
+	GetURL(ctx context.Context, id string) (string, error)
+	CheckIfURLExist(ctx context.Context, id string) (bool, error)
+	Ping(ctx context.Context) error
+	Close() error
 }
 
 type URLService struct {
@@ -21,25 +23,32 @@ func NewURLService(repo URLRepo, baseURL string) *URLService {
 	return &URLService{repo: repo, baseURL: baseURL}
 }
 
-func (s *URLService) ShortenURL(url string) string {
+func (s *URLService) ShortenURL(ctx context.Context, url string) (string, error) {
 	id := ""
 	for {
 		id = generateID()
-		if !s.repo.CheckIfURLExist(id) {
+		exists, err := s.repo.CheckIfURLExist(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		if !exists {
 			break
 		}
 	}
 
-	s.repo.SaveURL(id, url)
-	return s.baseURL + "/" + id
+	if err := s.repo.SaveURL(ctx, id, url); err != nil {
+		return "", err
+	}
+
+	return s.baseURL + "/" + id, nil
 }
 
-func (s *URLService) GetOriginalURL(id string) (string, error) {
-	url, ok := s.repo.GetURL(id)
-	if !ok {
-		return "", errors.New("url not found")
-	}
-	return url, nil
+func (s *URLService) GetOriginalURL(ctx context.Context, id string) (string, error) {
+	return s.repo.GetURL(ctx, id)
+}
+
+func (s *URLService) Ping(ctx context.Context) error {
+	return s.repo.Ping(ctx)
 }
 
 func generateID() string {

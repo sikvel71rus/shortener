@@ -1,47 +1,55 @@
 package main
 
 import (
-	"database/sql"
+	"log"
+	"net/http"
+
 	"github.com/go-chi/chi/v5"
-	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/sikvel71rus/shortener.git/internal/config/starter"
 	"github.com/sikvel71rus/shortener.git/internal/handler"
 	"github.com/sikvel71rus/shortener.git/internal/logger"
 	"github.com/sikvel71rus/shortener.git/internal/middleware"
 	"github.com/sikvel71rus/shortener.git/internal/repository"
 	"github.com/sikvel71rus/shortener.git/internal/service"
-	"log"
-	"net/http"
 )
 
 func main() {
-
 	starterCfg := starter.Parse()
 
 	if err := logger.Initialize("info"); err != nil {
 		panic(err)
 	}
 
-	var db *sql.DB
+	var repo service.URLRepo
+	var err error
+
 	if starterCfg.DatabaseDSN != "" {
-		var err error
-		db, err = sql.Open("pgx", starterCfg.DatabaseDSN)
+		repo, err = repository.NewPostgresRepo(starterCfg.DatabaseDSN)
 		if err != nil {
-			log.Fatalf("Unable to connect to database: %v\n", err)
+			log.Fatalf("Ошибка инициализации БД: %v", err)
 		}
-		defer db.Close()
+		log.Println("Используется хранилище: PostgreSQL")
+
+	} else if starterCfg.FileStoragePath != "" {
+		repo, err = repository.NewMapURLRepo(starterCfg.FileStoragePath)
+		if err != nil {
+			log.Fatalf("Ошибка инициализации файлового хранилища: %v", err)
+		}
+		log.Println("Используется хранилище: Файл")
+
+	} else {
+		repo, err = repository.NewMapURLRepo("")
+		if err != nil {
+			log.Fatalf("Ошибка инициализации in-memory хранилища: %v", err)
+		}
+		log.Println("Используется хранилище: In-Memory")
 	}
 
-	repo, err := repository.NewMapURLRepo(starterCfg.FileStoragePath)
-	if err != nil {
-		panic(err)
-	}
+	defer repo.Close()
 
 	srv := service.NewURLService(repo, starterCfg.BaseURL)
 	h := handler.NewURLHandler(srv)
-	pingHandler := handler.PingHandler(db)
 
-	defer repo.Close()
 	r := chi.NewRouter()
 
 	log.Printf("Сервер запущен на %s, базовый адрес: %s", starterCfg.ServerAddress, starterCfg.BaseURL)
@@ -52,10 +60,9 @@ func main() {
 	r.Post("/", h.PostURLHandler)
 	r.Post("/api/shorten", h.ShortenJSONHandler)
 	r.Get("/{id}", h.GetURLHandler)
-	r.Get("/ping", pingHandler)
+	r.Get("/ping", h.PingHandler)
 
-	err = http.ListenAndServe(starterCfg.ServerAddress, r)
-	if err != nil {
+	if err := http.ListenAndServe(starterCfg.ServerAddress, r); err != nil {
 		panic(err)
 	}
 }
