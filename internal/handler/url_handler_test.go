@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -10,14 +11,16 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/sikvel71rus/shortener.git/internal/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type mockURLService struct {
-	getFunc     func(ctx context.Context, id string) (string, error)
-	shortenFunc func(ctx context.Context, url string) (string, error)
-	pingFunc    func(ctx context.Context) error
+	getFunc          func(ctx context.Context, id string) (string, error)
+	shortenFunc      func(ctx context.Context, url string) (string, error)
+	shortenBatchFunc func(ctx context.Context, batch []model.BatchRequest) ([]model.BatchResponse, error)
+	pingFunc         func(ctx context.Context) error
 }
 
 func (m *mockURLService) GetOriginalURL(ctx context.Context, id string) (string, error) {
@@ -26,6 +29,13 @@ func (m *mockURLService) GetOriginalURL(ctx context.Context, id string) (string,
 
 func (m *mockURLService) ShortenURL(ctx context.Context, url string) (string, error) {
 	return m.shortenFunc(ctx, url)
+}
+
+func (m *mockURLService) ShortenBatch(ctx context.Context, batch []model.BatchRequest) ([]model.BatchResponse, error) {
+	if m.shortenBatchFunc != nil {
+		return m.shortenBatchFunc(ctx, batch)
+	}
+	return nil, nil
 }
 
 func (m *mockURLService) Ping(ctx context.Context) error {
@@ -154,6 +164,90 @@ func TestURLHandler_PostHandler(t *testing.T) {
 			respBody, err := io.ReadAll(result.Body)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want.body, string(respBody))
+		})
+	}
+}
+
+func TestURLHandler_BatchHandler(t *testing.T) {
+	type want struct {
+		statusCode  int
+		contentType string
+	}
+	tests := []struct {
+		name    string
+		body    string
+		mockRes []model.BatchResponse
+		mockErr error
+		want    want
+	}{
+		{
+			name: "positive Batch test #1",
+			body: `[
+				{"correlation_id": "1", "original_url": "https://yandex.ru"},
+				{"correlation_id": "2", "original_url": "https://google.com"}
+			]`,
+			mockRes: []model.BatchResponse{
+				{CorrelationID: "1", ShortURL: "http://localhost:8080/short1"},
+				{CorrelationID: "2", ShortURL: "http://localhost:8080/short2"},
+			},
+			mockErr: nil,
+			want: want{
+				statusCode:  http.StatusCreated,
+				contentType: "application/json",
+			},
+		},
+		{
+			name:    "negative Batch test #2 (empty batch)",
+			body:    `[]`,
+			mockRes: nil,
+			mockErr: nil,
+			want: want{
+				statusCode:  http.StatusBadRequest,
+				contentType: "",
+			},
+		},
+		{
+			name:    "negative Batch test #3 (invalid JSON)",
+			body:    `{"invalid": "json"}`,
+			mockRes: nil,
+			mockErr: nil,
+			want: want{
+				statusCode:  http.StatusBadRequest,
+				contentType: "",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := &mockURLService{
+				shortenBatchFunc: func(ctx context.Context, batch []model.BatchRequest) ([]model.BatchResponse, error) {
+					return tt.mockRes, tt.mockErr
+				},
+			}
+			h := NewURLHandler(srv)
+
+			request := httptest.NewRequest(http.MethodPost, "/api/shorten/batch", strings.NewReader(tt.body))
+			w := httptest.NewRecorder()
+
+			h.BatchHandler(w, request)
+
+			result := w.Result()
+			defer result.Body.Close()
+
+			assert.Equal(t, tt.want.statusCode, result.StatusCode)
+
+			if tt.want.contentType != "" {
+				assert.Equal(t, tt.want.contentType, result.Header.Get("Content-Type"))
+			}
+
+			if tt.want.statusCode == http.StatusCreated {
+				var respBody []model.BatchResponse
+				err := json.NewDecoder(result.Body).Decode(&respBody)
+				require.NoError(t, err)
+				assert.Equal(t, tt.mockRes, respBody)
+				assert.Len(t, respBody, len(tt.mockRes))
+			}
 		})
 	}
 }

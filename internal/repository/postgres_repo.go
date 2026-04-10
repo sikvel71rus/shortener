@@ -6,6 +6,7 @@ import (
 	"embed"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+	"github.com/sikvel71rus/shortener.git/internal/model"
 )
 
 //go:embed migrations/*.sql
@@ -58,4 +59,26 @@ func (r *PostgresRepo) CheckIfURLExist(ctx context.Context, id string) (bool, er
 
 func (r *PostgresRepo) Close() error {
 	return r.db.Close()
+}
+
+func (r *PostgresRepo) SaveBatch(ctx context.Context, records []model.BatchRecord) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.PrepareContext(ctx, "INSERT INTO shortener (short_id, original_url) VALUES ($1, $2)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, rec := range records {
+		if _, err := stmt.ExecContext(ctx, rec.ShortID, rec.OriginalURL); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }

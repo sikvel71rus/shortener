@@ -61,6 +61,7 @@ func main() {
 	r.Post("/api/shorten", h.ShortenJSONHandler)
 	r.Get("/{id}", h.GetURLHandler)
 	r.Get("/ping", h.PingHandler)
+	r.Post("/api/shorten/batch", h.BatchHandler)
 
 	if err := http.ListenAndServe(starterCfg.ServerAddress, r); err != nil {
 		panic(err)

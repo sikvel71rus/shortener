@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/sikvel71rus/shortener.git/internal/model"
 	"strconv"
 	"sync"
 
@@ -99,6 +100,28 @@ func (r *MapURLRepo) Ping(ctx context.Context) error {
 func (r *MapURLRepo) Close() error {
 	if r.producer != nil {
 		return r.producer.Close()
+	}
+	return nil
+}
+
+func (r *MapURLRepo) SaveBatch(ctx context.Context, records []model.BatchRecord) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, rec := range records {
+		r.urls[rec.ShortID] = rec.OriginalURL
+		r.counter++
+
+		if r.producer != nil {
+			record := &storage.Record{
+				UUID:        strconv.Itoa(r.counter),
+				ShortURL:    rec.ShortID,
+				OriginalURL: rec.OriginalURL,
+			}
+			if err := r.producer.WriteEvent(record); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

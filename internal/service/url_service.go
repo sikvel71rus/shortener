@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/sikvel71rus/shortener.git/internal/model"
 	"math/rand"
 	"strings"
 )
@@ -11,6 +12,7 @@ type URLRepo interface {
 	GetURL(ctx context.Context, id string) (string, error)
 	CheckIfURLExist(ctx context.Context, id string) (bool, error)
 	Ping(ctx context.Context) error
+	SaveBatch(ctx context.Context, records []model.BatchRecord) error
 	Close() error
 }
 
@@ -59,4 +61,29 @@ func generateID() string {
 		b.WriteRune(chars[rand.Intn(len(chars))])
 	}
 	return b.String()
+}
+
+func (s *URLService) ShortenBatch(ctx context.Context, batch []model.BatchRequest) ([]model.BatchResponse, error) {
+	records := make([]model.BatchRecord, 0, len(batch))
+	result := make([]model.BatchResponse, 0, len(batch))
+
+	for _, req := range batch {
+		id := generateID()
+
+		records = append(records, model.BatchRecord{
+			ShortID:     id,
+			OriginalURL: req.OriginalURL,
+		})
+
+		result = append(result, model.BatchResponse{
+			CorrelationID: req.CorrelationID,
+			ShortURL:      s.baseURL + "/" + id,
+		})
+	}
+
+	if err := s.repo.SaveBatch(ctx, records); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
