@@ -2,19 +2,12 @@ package handler
 
 import (
 	"encoding/json"
+	"github.com/sikvel71rus/shortener.git/internal/model"
 	"net/http"
 )
 
-type ShortenRequest struct {
-	URL string `json:"url"`
-}
-
-type ShortenResponse struct {
-	Result string `json:"result"`
-}
-
 func (h *URLHandler) ShortenJSONHandler(w http.ResponseWriter, r *http.Request) {
-	var req ShortenRequest
+	var req model.ShortenRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
@@ -27,7 +20,7 @@ func (h *URLHandler) ShortenJSONHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	resp := ShortenResponse{
+	resp := model.ShortenResponse{
 		Result: url,
 	}
 
