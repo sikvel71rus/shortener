@@ -136,15 +136,15 @@ func TestURLHandler_PostHandler(t *testing.T) {
 			mockErr: errors.New("database connection lost"),
 			want: want{
 				statusCode:  http.StatusInternalServerError,
-				contentType: "", // Хендлер больше не устанавливает Content-Type для 500
-				body:        "", // Хендлер больше не пишет тело ошибки
+				contentType: "",
+				body:        "",
 			},
 		},
 		{
 			name:    "negative POST test #3 (conflict)",
 			body:    "https://practicum.yandex.ru/",
 			mockID:  "http://localhost:8080/alreadyExists",
-			mockErr: repository.ErrConflict, // Имитируем ошибку конфликта от базы/мапы
+			mockErr: repository.ErrConflict,
 			want: want{
 				statusCode:  http.StatusConflict,
 				contentType: "text/plain",
