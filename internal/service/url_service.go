@@ -27,7 +27,7 @@ func (s *URLService) ShortenURL(ctx context.Context, url string) (string, error)
 		if getErr != nil {
 			return "", getErr
 		}
-		return existingID, repository.ErrConflict
+		return s.baseURL + "/" + existingID, repository.ErrConflict
 	}
 
 	return s.baseURL + "/" + id, nil
