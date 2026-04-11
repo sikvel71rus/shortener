@@ -59,6 +59,12 @@ func (r *MapURLRepo) SaveURL(ctx context.Context, id, originalURL string) error 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	for _, val := range r.urls {
+		if val == originalURL {
+			return ErrConflict
+		}
+	}
+
 	r.urls[id] = originalURL
 	r.counter++
 
@@ -76,6 +82,17 @@ func (r *MapURLRepo) SaveURL(ctx context.Context, id, originalURL string) error 
 	return nil
 }
 
+func (r *MapURLRepo) GetShortIDByOriginalURL(ctx context.Context, originalURL string) (string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for id, val := range r.urls {
+		if val == originalURL {
+			return id, nil
+		}
+	}
+	return "", errors.New("not found")
+}
+
 func (r *MapURLRepo) GetURL(ctx context.Context, id string) (string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -84,13 +101,6 @@ func (r *MapURLRepo) GetURL(ctx context.Context, id string) (string, error) {
 		return "", errors.New("not found")
 	}
 	return url, nil
-}
-
-func (r *MapURLRepo) CheckIfURLExist(ctx context.Context, id string) (bool, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	_, ok := r.urls[id]
-	return ok, nil
 }
 
 func (r *MapURLRepo) Ping(ctx context.Context) error {

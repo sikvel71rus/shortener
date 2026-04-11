@@ -2,44 +2,32 @@ package service
 
 import (
 	"context"
+	"errors"
 	"github.com/sikvel71rus/shortener.git/internal/model"
+	"github.com/sikvel71rus/shortener.git/internal/repository"
 	"math/rand"
 	"strings"
 )
 
-type URLRepo interface {
-	SaveURL(ctx context.Context, id string, originalURL string) error
-	GetURL(ctx context.Context, id string) (string, error)
-	CheckIfURLExist(ctx context.Context, id string) (bool, error)
-	Ping(ctx context.Context) error
-	SaveBatch(ctx context.Context, records []model.BatchRecord) error
-	Close() error
-}
-
 type URLService struct {
-	repo    URLRepo
+	repo    repository.URLRepo
 	baseURL string
 }
 
-func NewURLService(repo URLRepo, baseURL string) *URLService {
+func NewURLService(repo repository.URLRepo, baseURL string) *URLService {
 	return &URLService{repo: repo, baseURL: baseURL}
 }
 
 func (s *URLService) ShortenURL(ctx context.Context, url string) (string, error) {
-	id := ""
-	for {
-		id = generateID()
-		exists, err := s.repo.CheckIfURLExist(ctx, id)
-		if err != nil {
-			return "", err
-		}
-		if !exists {
-			break
-		}
-	}
+	id := generateID()
+	err := s.repo.SaveURL(ctx, id, url)
 
-	if err := s.repo.SaveURL(ctx, id, url); err != nil {
-		return "", err
+	if errors.Is(err, repository.ErrConflict) {
+		existingID, getErr := s.repo.GetShortIDByOriginalURL(ctx, url)
+		if getErr != nil {
+			return "", getErr
+		}
+		return existingID, repository.ErrConflict
 	}
 
 	return s.baseURL + "/" + id, nil

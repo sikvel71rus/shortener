@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/sikvel71rus/shortener.git/internal/model"
@@ -33,9 +36,20 @@ func NewPostgresRepo(dsn string) (*PostgresRepo, error) {
 	return &PostgresRepo{db: db}, nil
 }
 
-func (r *PostgresRepo) SaveURL(ctx context.Context, id, originalURL string) error {
-	_, err := r.db.ExecContext(ctx, "INSERT INTO shortener (short_id, original_url) VALUES ($1, $2)", id, originalURL)
-	return err
+func (r *PostgresRepo) SaveURL(ctx context.Context, id string, originalURL string) error {
+	query := `INSERT INTO shortener (short_id, original_url) VALUES ($1, $2)`
+	_, err := r.db.ExecContext(ctx, query, id, originalURL)
+
+	if err != nil {
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return ErrConflict
+		}
+		return err
+	}
+
+	return nil
 }
 
 func (r *PostgresRepo) GetURL(ctx context.Context, id string) (string, error) {
@@ -49,12 +63,6 @@ func (r *PostgresRepo) GetURL(ctx context.Context, id string) (string, error) {
 
 func (r *PostgresRepo) Ping(ctx context.Context) error {
 	return r.db.PingContext(ctx)
-}
-
-func (r *PostgresRepo) CheckIfURLExist(ctx context.Context, id string) (bool, error) {
-	var exists bool
-	err := r.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM shortener WHERE short_id = $1)", id).Scan(&exists)
-	return exists, err
 }
 
 func (r *PostgresRepo) Close() error {
@@ -81,4 +89,12 @@ func (r *PostgresRepo) SaveBatch(ctx context.Context, records []model.BatchRecor
 	}
 
 	return tx.Commit()
+}
+
+func (r *PostgresRepo) GetShortIDByOriginalURL(ctx context.Context, originalURL string) (string, error) {
+	var id string
+	err := r.db.QueryRowContext(ctx,
+		"SELECT short_id FROM shortener WHERE original_url = $1",
+		originalURL).Scan(&id)
+	return id, err
 }

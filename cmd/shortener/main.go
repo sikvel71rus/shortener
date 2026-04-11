@@ -20,7 +20,7 @@ func main() {
 		panic(err)
 	}
 
-	var repo service.URLRepo
+	var repo repository.URLRepo
 	var err error
 
 	if starterCfg.DatabaseDSN != "" {
@@ -62,8 +62,5 @@ func main() {
 	r.Get("/{id}", h.GetURLHandler)
 	r.Get("/ping", h.PingHandler)
 	r.Post("/api/shorten/batch", h.BatchHandler)
-
-	if err := http.ListenAndServe(starterCfg.ServerAddress, r); err != nil {
-		panic(err)
-	}
+	log.Fatal(http.ListenAndServe(starterCfg.ServerAddress, r))
 }
