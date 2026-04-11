@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/sikvel71rus/shortener.git/internal/repository"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -135,8 +136,19 @@ func TestURLHandler_PostHandler(t *testing.T) {
 			mockErr: errors.New("database connection lost"),
 			want: want{
 				statusCode:  http.StatusInternalServerError,
-				contentType: "text/plain; charset=utf-8",
-				body:        "Internal Server Error\n",
+				contentType: "", // Хендлер больше не устанавливает Content-Type для 500
+				body:        "", // Хендлер больше не пишет тело ошибки
+			},
+		},
+		{
+			name:    "negative POST test #3 (conflict)",
+			body:    "https://practicum.yandex.ru/",
+			mockID:  "http://localhost:8080/alreadyExists",
+			mockErr: repository.ErrConflict, // Имитируем ошибку конфликта от базы/мапы
+			want: want{
+				statusCode:  http.StatusConflict,
+				contentType: "text/plain",
+				body:        "http://localhost:8080/alreadyExists",
 			},
 		},
 	}

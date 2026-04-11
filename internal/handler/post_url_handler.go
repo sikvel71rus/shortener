@@ -14,7 +14,7 @@ func (h *URLHandler) PostURLHandler(w http.ResponseWriter, r *http.Request) {
 
 	if errors.Is(err, repository.ErrConflict) {
 		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusConflict) // 409
+		w.WriteHeader(http.StatusConflict)
 		w.Write([]byte(id))
 		return
 	}
