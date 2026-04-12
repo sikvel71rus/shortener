@@ -14,6 +14,7 @@ import (
 
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
+var ErrNotFound = errors.New("url not found")
 
 type PostgresRepo struct {
 	db *sql.DB
@@ -55,10 +56,15 @@ func (r *PostgresRepo) SaveURL(ctx context.Context, id string, originalURL strin
 func (r *PostgresRepo) GetURL(ctx context.Context, id string) (string, error) {
 	var originalURL string
 	err := r.db.QueryRowContext(ctx, "SELECT original_url FROM shortener WHERE short_id = $1", id).Scan(&originalURL)
-	if err == sql.ErrNoRows {
-		return "", nil
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", err
 	}
-	return originalURL, err
+
+	return originalURL, nil
 }
 
 func (r *PostgresRepo) Ping(ctx context.Context) error {

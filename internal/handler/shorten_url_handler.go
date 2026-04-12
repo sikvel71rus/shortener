@@ -10,7 +10,16 @@ import (
 
 func (h *URLHandler) ShortenJSONHandler(w http.ResponseWriter, r *http.Request) {
 	var req model.ShortenRequest
-	json.NewDecoder(r.Body).Decode(&req)
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if req.URL == "" {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
 
 	url, err := h.srv.ShortenURL(r.Context(), req.URL)
 
