@@ -6,8 +6,6 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/sikvel71rus/shortener.git/internal/model"
@@ -45,29 +43,33 @@ func (r *PostgresRepo) SaveURL(ctx context.Context, id string, originalURL strin
 	}
 	defer tx.Rollback()
 
-	query := `INSERT INTO shortener (short_id, original_url) VALUES ($1, $2)`
-	_, err = tx.ExecContext(ctx, query, id, originalURL)
+	var savedID string
+	err = tx.QueryRowContext(ctx, `
+		INSERT INTO shortener (short_id, original_url)
+		VALUES ($1, $2)
+		ON CONFLICT (original_url) DO NOTHING
+		RETURNING short_id
+	`, id, originalURL).Scan(&savedID)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		existingID, getErr := r.getShortIDByOriginalURLQuerier(ctx, tx, originalURL)
+		if getErr != nil {
+			return getErr
+		}
+		if err := bindUserURL(ctx, tx, userID, existingID); err != nil {
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+		return ErrConflict
+	}
 
 	if err != nil {
-		var pgErr *pgconn.PgError
-
-		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-			existingID, getErr := r.getShortIDByOriginalURLQuerier(ctx, tx, originalURL)
-			if getErr != nil {
-				return getErr
-			}
-			if err := bindUserURL(ctx, tx, userID, existingID); err != nil {
-				return err
-			}
-			if err := tx.Commit(); err != nil {
-				return err
-			}
-			return ErrConflict
-		}
 		return err
 	}
 
-	if err := bindUserURL(ctx, tx, userID, id); err != nil {
+	if err := bindUserURL(ctx, tx, userID, savedID); err != nil {
 		return err
 	}
 
@@ -103,29 +105,31 @@ func (r *PostgresRepo) SaveBatch(ctx context.Context, records []model.BatchRecor
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.PrepareContext(ctx, "INSERT INTO shortener (short_id, original_url) VALUES ($1, $2)")
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
 	for _, rec := range records {
-		if _, err := stmt.ExecContext(ctx, rec.ShortID, rec.OriginalURL); err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-				existingID, getErr := r.getShortIDByOriginalURLQuerier(ctx, tx, rec.OriginalURL)
-				if getErr != nil {
-					return getErr
-				}
-				if err := bindUserURL(ctx, tx, userID, existingID); err != nil {
-					return err
-				}
-				continue
+		var savedID string
+		err := tx.QueryRowContext(ctx, `
+			INSERT INTO shortener (short_id, original_url)
+			VALUES ($1, $2)
+			ON CONFLICT (original_url) DO NOTHING
+			RETURNING short_id
+		`, rec.ShortID, rec.OriginalURL).Scan(&savedID)
+
+		if errors.Is(err, sql.ErrNoRows) {
+			existingID, getErr := r.getShortIDByOriginalURLQuerier(ctx, tx, rec.OriginalURL)
+			if getErr != nil {
+				return getErr
 			}
+			if err := bindUserURL(ctx, tx, userID, existingID); err != nil {
+				return err
+			}
+			continue
+		}
+
+		if err != nil {
 			return err
 		}
 
-		if err := bindUserURL(ctx, tx, userID, rec.ShortID); err != nil {
+		if err := bindUserURL(ctx, tx, userID, savedID); err != nil {
 			return err
 		}
 	}
