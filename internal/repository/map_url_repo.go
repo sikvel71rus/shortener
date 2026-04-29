@@ -1,10 +1,14 @@
 package repository
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"github.com/sikvel71rus/shortener.git/internal/storage"
+	"github.com/sikvel71rus/shortener.git/internal/model"
 	"strconv"
 	"sync"
+
+	"github.com/sikvel71rus/shortener.git/internal/storage"
 )
 
 type MapURLRepo struct {
@@ -51,9 +55,15 @@ func NewMapURLRepo(filePath string) (*MapURLRepo, error) {
 	return repo, nil
 }
 
-func (r *MapURLRepo) SaveURL(id, originalURL string) error {
+func (r *MapURLRepo) SaveURL(ctx context.Context, id, originalURL string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	for _, val := range r.urls {
+		if val == originalURL {
+			return ErrConflict
+		}
+	}
 
 	r.urls[id] = originalURL
 	r.counter++
@@ -72,20 +82,56 @@ func (r *MapURLRepo) SaveURL(id, originalURL string) error {
 	return nil
 }
 
-func (r *MapURLRepo) Close() error {
-	return r.producer.Close()
+func (r *MapURLRepo) GetShortIDByOriginalURL(ctx context.Context, originalURL string) (string, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for id, val := range r.urls {
+		if val == originalURL {
+			return id, nil
+		}
+	}
+	return "", errors.New("not found")
 }
 
-func (r *MapURLRepo) GetURL(id string) (string, bool) {
+func (r *MapURLRepo) GetURL(ctx context.Context, id string) (string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	url, ok := r.urls[id]
-	return url, ok
+	if !ok {
+		return "", errors.New("not found")
+	}
+	return url, nil
 }
 
-func (r *MapURLRepo) CheckIfURLExist(id string) bool {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	_, ok := r.urls[id]
-	return ok
+func (r *MapURLRepo) Ping(ctx context.Context) error {
+	return nil
+}
+
+func (r *MapURLRepo) Close() error {
+	if r.producer != nil {
+		return r.producer.Close()
+	}
+	return nil
+}
+
+func (r *MapURLRepo) SaveBatch(ctx context.Context, records []model.BatchRecord) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, rec := range records {
+		r.urls[rec.ShortID] = rec.OriginalURL
+		r.counter++
+
+		if r.producer != nil {
+			record := &storage.Record{
+				UUID:        strconv.Itoa(r.counter),
+				ShortURL:    rec.ShortID,
+				OriginalURL: rec.OriginalURL,
+			}
+			if err := r.producer.WriteEvent(record); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

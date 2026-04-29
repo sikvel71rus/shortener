@@ -7,7 +7,7 @@ import (
 
 func (h *URLHandler) GetURLHandler(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	url, err := h.srv.GetOriginalURL(id)
+	url, err := h.srv.GetOriginalURL(r.Context(), id)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
