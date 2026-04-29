@@ -5,11 +5,42 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/sikvel71rus/shortener.git/internal/auth"
 	"github.com/sikvel71rus/shortener.git/internal/repository"
 )
 
 func (h *URLHandler) UserURLsHandler(w http.ResponseWriter, r *http.Request) {
-	userID, err := h.getUserIDFromRequest(r)
+	cookie, err := r.Cookie(auth.CookieName)
+	if err != nil {
+		if errors.Is(err, http.ErrNoCookie) {
+			userID, issueErr := h.issueNewCookie(w)
+			if issueErr != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			urls, getErr := h.srv.GetUserURLs(r.Context(), userID)
+			if errors.Is(getErr, repository.ErrNoUserURLs) || len(urls) == 0 {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			if getErr != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(urls); err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+			return
+		}
+
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	userID, err := auth.ParseUserID(cookie.Value)
 	if err != nil || userID == "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
