@@ -14,13 +14,17 @@ import (
 type MapURLRepo struct {
 	mu       sync.RWMutex
 	urls     map[string]string
+	original map[string]string
+	userURLs map[string]map[string]struct{}
 	producer *storage.Producer
 	counter  int
 }
 
 func NewMapURLRepo(filePath string) (*MapURLRepo, error) {
 	repo := &MapURLRepo{
-		urls: make(map[string]string),
+		urls:     make(map[string]string),
+		original: make(map[string]string),
+		userURLs: make(map[string]map[string]struct{}),
 	}
 
 	if filePath != "" {
@@ -39,6 +43,8 @@ func NewMapURLRepo(filePath string) (*MapURLRepo, error) {
 				break
 			}
 			repo.urls[record.ShortURL] = record.OriginalURL
+			repo.original[record.OriginalURL] = record.ShortURL
+			repo.bindUserURL(record.UserID, record.ShortURL)
 			id, _ := strconv.Atoi(record.UUID)
 			if id > repo.counter {
 				repo.counter = id
@@ -55,17 +61,18 @@ func NewMapURLRepo(filePath string) (*MapURLRepo, error) {
 	return repo, nil
 }
 
-func (r *MapURLRepo) SaveURL(ctx context.Context, id, originalURL string) error {
+func (r *MapURLRepo) SaveURL(ctx context.Context, id, originalURL, userID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for _, val := range r.urls {
-		if val == originalURL {
-			return ErrConflict
-		}
+	if existingID, ok := r.original[originalURL]; ok {
+		r.bindUserURL(userID, existingID)
+		return ErrConflict
 	}
 
 	r.urls[id] = originalURL
+	r.original[originalURL] = id
+	r.bindUserURL(userID, id)
 	r.counter++
 
 	if r.producer != nil {
@@ -73,6 +80,7 @@ func (r *MapURLRepo) SaveURL(ctx context.Context, id, originalURL string) error 
 			UUID:        strconv.Itoa(r.counter),
 			ShortURL:    id,
 			OriginalURL: originalURL,
+			UserID:      userID,
 		}
 		if err := r.producer.WriteEvent(record); err != nil {
 			return fmt.Errorf("failed to write record: %w", err)
@@ -85,10 +93,8 @@ func (r *MapURLRepo) SaveURL(ctx context.Context, id, originalURL string) error 
 func (r *MapURLRepo) GetShortIDByOriginalURL(ctx context.Context, originalURL string) (string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	for id, val := range r.urls {
-		if val == originalURL {
-			return id, nil
-		}
+	if id, ok := r.original[originalURL]; ok {
+		return id, nil
 	}
 	return "", errors.New("not found")
 }
@@ -114,12 +120,19 @@ func (r *MapURLRepo) Close() error {
 	return nil
 }
 
-func (r *MapURLRepo) SaveBatch(ctx context.Context, records []model.BatchRecord) error {
+func (r *MapURLRepo) SaveBatch(ctx context.Context, records []model.BatchRecord, userID string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	for _, rec := range records {
+		if existingID, ok := r.original[rec.OriginalURL]; ok {
+			r.bindUserURL(userID, existingID)
+			continue
+		}
+
 		r.urls[rec.ShortID] = rec.OriginalURL
+		r.original[rec.OriginalURL] = rec.ShortID
+		r.bindUserURL(userID, rec.ShortID)
 		r.counter++
 
 		if r.producer != nil {
@@ -127,6 +140,7 @@ func (r *MapURLRepo) SaveBatch(ctx context.Context, records []model.BatchRecord)
 				UUID:        strconv.Itoa(r.counter),
 				ShortURL:    rec.ShortID,
 				OriginalURL: rec.OriginalURL,
+				UserID:      userID,
 			}
 			if err := r.producer.WriteEvent(record); err != nil {
 				return err
@@ -134,4 +148,43 @@ func (r *MapURLRepo) SaveBatch(ctx context.Context, records []model.BatchRecord)
 		}
 	}
 	return nil
+}
+
+func (r *MapURLRepo) GetUserURLs(ctx context.Context, userID string) ([]model.UserURL, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	shortIDs, ok := r.userURLs[userID]
+	if !ok || len(shortIDs) == 0 {
+		return nil, ErrNoUserURLs
+	}
+
+	result := make([]model.UserURL, 0, len(shortIDs))
+	for shortID := range shortIDs {
+		result = append(result, model.UserURL{
+			ShortURL:    shortID,
+			OriginalURL: r.urls[shortID],
+		})
+	}
+
+	return result, nil
+}
+
+func (r *MapURLRepo) CountURLs(ctx context.Context) (int, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return len(r.urls), nil
+}
+
+func (r *MapURLRepo) bindUserURL(userID, shortID string) {
+	if userID == "" {
+		return
+	}
+
+	if _, ok := r.userURLs[userID]; !ok {
+		r.userURLs[userID] = make(map[string]struct{})
+	}
+
+	r.userURLs[userID][shortID] = struct{}{}
 }

@@ -18,9 +18,9 @@ func NewURLService(repo repository.URLRepo, baseURL string) *URLService {
 	return &URLService{repo: repo, baseURL: baseURL}
 }
 
-func (s *URLService) ShortenURL(ctx context.Context, url string) (string, error) {
+func (s *URLService) ShortenURL(ctx context.Context, url string, userID string) (string, error) {
 	id := generateID()
-	err := s.repo.SaveURL(ctx, id, url)
+	err := s.repo.SaveURL(ctx, id, url, userID)
 
 	if errors.Is(err, repository.ErrConflict) {
 		existingID, getErr := s.repo.GetShortIDByOriginalURL(ctx, url)
@@ -51,7 +51,7 @@ func generateID() string {
 	return b.String()
 }
 
-func (s *URLService) ShortenBatch(ctx context.Context, batch []model.BatchRequest) ([]model.BatchResponse, error) {
+func (s *URLService) ShortenBatch(ctx context.Context, batch []model.BatchRequest, userID string) ([]model.BatchResponse, error) {
 	records := make([]model.BatchRecord, 0, len(batch))
 	result := make([]model.BatchResponse, 0, len(batch))
 
@@ -69,8 +69,25 @@ func (s *URLService) ShortenBatch(ctx context.Context, batch []model.BatchReques
 		})
 	}
 
-	if err := s.repo.SaveBatch(ctx, records); err != nil {
+	if err := s.repo.SaveBatch(ctx, records, userID); err != nil {
 		return nil, err
+	}
+
+	return result, nil
+}
+
+func (s *URLService) GetUserURLs(ctx context.Context, userID string) ([]model.UserURL, error) {
+	urls, err := s.repo.GetUserURLs(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]model.UserURL, 0, len(urls))
+	for _, item := range urls {
+		result = append(result, model.UserURL{
+			ShortURL:    s.baseURL + "/" + item.ShortURL,
+			OriginalURL: item.OriginalURL,
+		})
 	}
 
 	return result, nil

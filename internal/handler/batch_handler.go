@@ -18,7 +18,13 @@ func (h *URLHandler) BatchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := h.srv.ShortenBatch(r.Context(), req)
+	userID, err := h.ensureUserID(w, r)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	res, err := h.srv.ShortenBatch(r.Context(), req, userID)
 	if err != nil {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
