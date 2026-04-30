@@ -310,7 +310,10 @@ func TestURLHandler_GetHandlerDeleted(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusGone, w.Result().StatusCode)
+	res := w.Result()
+	defer res.Body.Close()
+
+	assert.Equal(t, http.StatusGone, res.StatusCode)
 }
 
 func TestURLHandler_DeleteUserURLsHandler(t *testing.T) {
@@ -332,5 +335,8 @@ func TestURLHandler_DeleteUserURLsHandler(t *testing.T) {
 
 	h.DeleteUserURLsHandler(w, req)
 
-	assert.Equal(t, http.StatusAccepted, w.Result().StatusCode)
+	res := w.Result()
+	defer res.Body.Close()
+
+	assert.Equal(t, http.StatusAccepted, res.StatusCode)
 }
