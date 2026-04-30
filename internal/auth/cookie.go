@@ -13,7 +13,7 @@ import (
 
 const (
 	CookieName = "user_token"
-	secretKey  = "supersecretkey"
+	secretKey  = "secretkey"
 )
 
 var (
