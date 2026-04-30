@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/sikvel71rus/shortener.git/internal/auth"
 	"github.com/sikvel71rus/shortener.git/internal/repository"
 	"io"
 	"net/http"
@@ -23,6 +24,7 @@ type mockURLService struct {
 	shortenBatchFunc func(ctx context.Context, batch []model.BatchRequest, userID string) ([]model.BatchResponse, error)
 	getUserURLsFunc  func(ctx context.Context, userID string) ([]model.UserURL, error)
 	countURLsFunc    func(ctx context.Context) (int, error)
+	deleteUserURLsFn func(ctx context.Context, userID string, shortIDs []string) error
 	pingFunc         func(ctx context.Context) error
 }
 
@@ -46,6 +48,20 @@ func (m *mockURLService) GetUserURLs(ctx context.Context, userID string) ([]mode
 		return m.getUserURLsFunc(ctx, userID)
 	}
 	return nil, nil
+}
+
+func (m *mockURLService) DeleteUserURLs(ctx context.Context, userID string, shortIDs []string) error {
+	if m.deleteUserURLsFn != nil {
+		return m.deleteUserURLsFn(ctx, userID, shortIDs)
+	}
+	return nil
+}
+
+func (m *mockURLService) CountURLs(ctx context.Context) (int, error) {
+	if m.countURLsFunc != nil {
+		return m.countURLsFunc(ctx)
+	}
+	return 0, nil
 }
 
 func (m *mockURLService) Ping(ctx context.Context) error {
@@ -277,4 +293,44 @@ func TestURLHandler_BatchHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestURLHandler_GetHandlerDeleted(t *testing.T) {
+	srv := &mockURLService{
+		getFunc: func(ctx context.Context, id string) (string, error) {
+			return "", repository.ErrDeleted
+		},
+	}
+	h := NewURLHandler(srv)
+
+	r := chi.NewRouter()
+	r.Get("/{id}", h.GetURLHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/deleted", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusGone, w.Result().StatusCode)
+}
+
+func TestURLHandler_DeleteUserURLsHandler(t *testing.T) {
+	token, err := auth.BuildToken("user-1")
+	require.NoError(t, err)
+
+	srv := &mockURLService{
+		deleteUserURLsFn: func(ctx context.Context, userID string, shortIDs []string) error {
+			assert.Equal(t, "user-1", userID)
+			assert.Equal(t, []string{"abc123", "def456"}, shortIDs)
+			return nil
+		},
+	}
+	h := NewURLHandler(srv)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/user/urls", strings.NewReader(`["abc123","def456"]`))
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
+	w := httptest.NewRecorder()
+
+	h.DeleteUserURLsHandler(w, req)
+
+	assert.Equal(t, http.StatusAccepted, w.Result().StatusCode)
 }

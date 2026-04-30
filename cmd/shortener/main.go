@@ -63,5 +63,6 @@ func main() {
 	r.Get("/ping", h.PingHandler)
 	r.Post("/api/shorten/batch", h.BatchHandler)
 	r.Get("/api/user/urls", h.UserURLsHandler)
+	r.Delete("/api/user/urls", h.DeleteUserURLsHandler)
 	log.Fatal(http.ListenAndServe(starterCfg.ServerAddress, r))
 }

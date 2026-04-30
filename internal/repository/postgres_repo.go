@@ -78,13 +78,17 @@ func (r *PostgresRepo) SaveURL(ctx context.Context, id string, originalURL strin
 
 func (r *PostgresRepo) GetURL(ctx context.Context, id string) (string, error) {
 	var originalURL string
-	err := r.db.QueryRowContext(ctx, "SELECT original_url FROM shortener WHERE short_id = $1", id).Scan(&originalURL)
+	var isDeleted bool
+	err := r.db.QueryRowContext(ctx, "SELECT original_url, is_deleted FROM shortener WHERE short_id = $1", id).Scan(&originalURL, &isDeleted)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", ErrNotFound
 		}
 		return "", err
+	}
+	if isDeleted {
+		return "", ErrDeleted
 	}
 
 	return originalURL, nil
@@ -147,6 +151,7 @@ func (r *PostgresRepo) GetUserURLs(ctx context.Context, userID string) ([]model.
 		FROM user_urls u
 		JOIN shortener s ON s.short_id = u.short_id
 		WHERE u.user_id = $1
+		  AND s.is_deleted = FALSE
 		ORDER BY s.id
 	`, userID)
 	if err != nil {
@@ -172,6 +177,23 @@ func (r *PostgresRepo) GetUserURLs(ctx context.Context, userID string) ([]model.
 	}
 
 	return result, nil
+}
+
+func (r *PostgresRepo) DeleteUserURLs(ctx context.Context, userID string, shortIDs []string) error {
+	if len(shortIDs) == 0 {
+		return nil
+	}
+
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE shortener
+		SET is_deleted = TRUE
+		WHERE short_id IN (
+			SELECT short_id
+			FROM user_urls
+			WHERE user_id = $1 AND short_id = ANY($2)
+		)
+	`, userID, shortIDs)
+	return err
 }
 
 func (r *PostgresRepo) CountURLs(ctx context.Context) (int, error) {

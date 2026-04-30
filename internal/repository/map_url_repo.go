@@ -16,6 +16,7 @@ type MapURLRepo struct {
 	urls     map[string]string
 	original map[string]string
 	userURLs map[string]map[string]struct{}
+	deleted  map[string]bool
 	producer *storage.Producer
 	counter  int
 }
@@ -25,6 +26,7 @@ func NewMapURLRepo(filePath string) (*MapURLRepo, error) {
 		urls:     make(map[string]string),
 		original: make(map[string]string),
 		userURLs: make(map[string]map[string]struct{}),
+		deleted:  make(map[string]bool),
 	}
 
 	if filePath != "" {
@@ -42,9 +44,12 @@ func NewMapURLRepo(filePath string) (*MapURLRepo, error) {
 			if record == nil {
 				break
 			}
-			repo.urls[record.ShortURL] = record.OriginalURL
-			repo.original[record.OriginalURL] = record.ShortURL
+			if record.OriginalURL != "" {
+				repo.urls[record.ShortURL] = record.OriginalURL
+				repo.original[record.OriginalURL] = record.ShortURL
+			}
 			repo.bindUserURL(record.UserID, record.ShortURL)
+			repo.deleted[record.ShortURL] = record.IsDeleted
 			id, _ := strconv.Atoi(record.UUID)
 			if id > repo.counter {
 				repo.counter = id
@@ -106,6 +111,9 @@ func (r *MapURLRepo) GetURL(ctx context.Context, id string) (string, error) {
 	if !ok {
 		return "", errors.New("not found")
 	}
+	if r.deleted[id] {
+		return "", ErrDeleted
+	}
 	return url, nil
 }
 
@@ -161,10 +169,17 @@ func (r *MapURLRepo) GetUserURLs(ctx context.Context, userID string) ([]model.Us
 
 	result := make([]model.UserURL, 0, len(shortIDs))
 	for shortID := range shortIDs {
+		if r.deleted[shortID] {
+			continue
+		}
 		result = append(result, model.UserURL{
 			ShortURL:    shortID,
 			OriginalURL: r.urls[shortID],
 		})
+	}
+
+	if len(result) == 0 {
+		return nil, ErrNoUserURLs
 	}
 
 	return result, nil
@@ -175,6 +190,32 @@ func (r *MapURLRepo) CountURLs(ctx context.Context) (int, error) {
 	defer r.mu.RUnlock()
 
 	return len(r.urls), nil
+}
+
+func (r *MapURLRepo) DeleteUserURLs(ctx context.Context, userID string, shortIDs []string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	owned := r.userURLs[userID]
+	for _, shortID := range shortIDs {
+		if _, ok := owned[shortID]; ok {
+			r.deleted[shortID] = true
+			if r.producer != nil {
+				r.counter++
+				record := &storage.Record{
+					UUID:      strconv.Itoa(r.counter),
+					ShortURL:  shortID,
+					UserID:    userID,
+					IsDeleted: true,
+				}
+				if err := r.producer.WriteEvent(record); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (r *MapURLRepo) bindUserURL(userID, shortID string) {

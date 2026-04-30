@@ -10,12 +10,26 @@ import (
 )
 
 type URLService struct {
-	repo    repository.URLRepo
-	baseURL string
+	repo     repository.URLRepo
+	baseURL  string
+	deleteCh chan deleteTask
+}
+
+type deleteTask struct {
+	userID   string
+	shortIDs []string
 }
 
 func NewURLService(repo repository.URLRepo, baseURL string) *URLService {
-	return &URLService{repo: repo, baseURL: baseURL}
+	svc := &URLService{
+		repo:     repo,
+		baseURL:  baseURL,
+		deleteCh: make(chan deleteTask, 128),
+	}
+
+	go svc.processDeleteQueue()
+
+	return svc
 }
 
 func (s *URLService) ShortenURL(ctx context.Context, url string, userID string) (string, error) {
@@ -91,4 +105,34 @@ func (s *URLService) GetUserURLs(ctx context.Context, userID string) ([]model.Us
 	}
 
 	return result, nil
+}
+
+func (s *URLService) DeleteUserURLs(ctx context.Context, userID string, shortIDs []string) error {
+	if len(shortIDs) == 0 {
+		return nil
+	}
+
+	idsCopy := append([]string(nil), shortIDs...)
+
+	select {
+	case s.deleteCh <- deleteTask{userID: userID, shortIDs: idsCopy}:
+	default:
+		go s.deleteURLs(idsCopy, userID)
+	}
+
+	return nil
+}
+
+func (s *URLService) CountURLs(ctx context.Context) (int, error) {
+	return s.repo.CountURLs(ctx)
+}
+
+func (s *URLService) processDeleteQueue() {
+	for task := range s.deleteCh {
+		s.deleteURLs(task.shortIDs, task.userID)
+	}
+}
+
+func (s *URLService) deleteURLs(shortIDs []string, userID string) {
+	_ = s.repo.DeleteUserURLs(context.Background(), userID, shortIDs)
 }

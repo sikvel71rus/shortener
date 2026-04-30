@@ -15,6 +15,8 @@ type URLService interface {
 	Ping(ctx context.Context) error
 	ShortenBatch(ctx context.Context, batch []model.BatchRequest, userID string) ([]model.BatchResponse, error)
 	GetUserURLs(ctx context.Context, userID string) ([]model.UserURL, error)
+	DeleteUserURLs(ctx context.Context, userID string, shortIDs []string) error
+	CountURLs(ctx context.Context) (int, error)
 }
 
 type URLHandler struct {

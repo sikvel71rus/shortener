@@ -12,6 +12,7 @@ type URLRepo interface {
 	GetShortIDByOriginalURL(ctx context.Context, originalURL string) (string, error)
 	SaveBatch(ctx context.Context, records []model.BatchRecord, userID string) error
 	GetUserURLs(ctx context.Context, userID string) ([]model.UserURL, error)
+	DeleteUserURLs(ctx context.Context, userID string, shortIDs []string) error
 	CountURLs(ctx context.Context) (int, error)
 	Ping(ctx context.Context) error
 	Close() error
@@ -19,3 +20,4 @@ type URLRepo interface {
 
 var ErrConflict = errors.New("URL already exists")
 var ErrNoUserURLs = errors.New("user has no urls")
+var ErrDeleted = errors.New("url deleted")
