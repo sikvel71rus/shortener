@@ -9,17 +9,31 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 )
 
-const (
-	CookieName = "user_token"
-	secretKey  = "secretkey"
-)
+const CookieName = "user_token"
 
 var (
 	ErrInvalidToken = errors.New("invalid auth token")
 	ErrEmptyUserID  = errors.New("empty user id")
+	ErrEmptySecret  = errors.New("empty auth secret")
+
+	secretMu  sync.RWMutex
+	secretKey string
 )
+
+func SetSecret(secret string) error {
+	if strings.TrimSpace(secret) == "" {
+		return ErrEmptySecret
+	}
+
+	secretMu.Lock()
+	defer secretMu.Unlock()
+	secretKey = secret
+
+	return nil
+}
 
 func NewSignedCookie() (*http.Cookie, string, error) {
 	userID, err := generateUserID()
@@ -45,8 +59,13 @@ func BuildToken(userID string) (string, error) {
 		return "", ErrEmptyUserID
 	}
 
+	secret, err := getSecret()
+	if err != nil {
+		return "", err
+	}
+
 	payload := base64.RawURLEncoding.EncodeToString([]byte(userID))
-	mac := hmac.New(sha256.New, []byte(secretKey))
+	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(payload))
 	signature := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 
@@ -59,8 +78,13 @@ func ParseUserID(token string) (string, error) {
 		return "", ErrInvalidToken
 	}
 
+	secret, err := getSecret()
+	if err != nil {
+		return "", err
+	}
+
 	payload := parts[0]
-	mac := hmac.New(sha256.New, []byte(secretKey))
+	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(payload))
 	expected := mac.Sum(nil)
 
@@ -84,6 +108,17 @@ func ParseUserID(token string) (string, error) {
 	}
 
 	return userID, nil
+}
+
+func getSecret() (string, error) {
+	secretMu.RLock()
+	defer secretMu.RUnlock()
+
+	if strings.TrimSpace(secretKey) == "" {
+		return "", ErrEmptySecret
+	}
+
+	return secretKey, nil
 }
 
 func generateUserID() (string, error) {

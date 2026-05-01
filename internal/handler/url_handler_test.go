@@ -28,6 +28,10 @@ type mockURLService struct {
 	pingFunc         func(ctx context.Context) error
 }
 
+func init() {
+	_ = auth.SetSecret("test-secret")
+}
+
 func (m *mockURLService) GetOriginalURL(ctx context.Context, id string) (string, error) {
 	return m.getFunc(ctx, id)
 }

@@ -7,12 +7,15 @@ import (
 	"github.com/sikvel71rus/shortener.git/internal/repository"
 	"math/rand"
 	"strings"
+	"sync"
 )
 
 type URLService struct {
-	repo     repository.URLRepo
-	baseURL  string
-	deleteCh chan deleteTask
+	repo      repository.URLRepo
+	baseURL   string
+	deleteCh  chan deleteTask
+	closeOnce sync.Once
+	wg        sync.WaitGroup
 }
 
 type deleteTask struct {
@@ -27,6 +30,7 @@ func NewURLService(repo repository.URLRepo, baseURL string) *URLService {
 		deleteCh: make(chan deleteTask, 128),
 	}
 
+	svc.wg.Add(1)
 	go svc.processDeleteQueue()
 
 	return svc
@@ -128,6 +132,8 @@ func (s *URLService) CountURLs(ctx context.Context) (int, error) {
 }
 
 func (s *URLService) processDeleteQueue() {
+	defer s.wg.Done()
+
 	for task := range s.deleteCh {
 		s.deleteURLs(task.shortIDs, task.userID)
 	}
@@ -135,4 +141,11 @@ func (s *URLService) processDeleteQueue() {
 
 func (s *URLService) deleteURLs(shortIDs []string, userID string) {
 	_ = s.repo.DeleteUserURLs(context.Background(), userID, shortIDs)
+}
+
+func (s *URLService) Close() {
+	s.closeOnce.Do(func() {
+		close(s.deleteCh)
+		s.wg.Wait()
+	})
 }

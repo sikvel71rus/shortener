@@ -13,26 +13,11 @@ func (h *URLHandler) UserURLsHandler(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(auth.CookieName)
 	if err != nil {
 		if errors.Is(err, http.ErrNoCookie) {
-			userID, issueErr := h.issueNewCookie(w)
-			if issueErr != nil {
+			if _, issueErr := h.issueNewCookie(w); issueErr != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-
-			urls, getErr := h.srv.GetUserURLs(r.Context(), userID)
-			if errors.Is(getErr, repository.ErrNoUserURLs) || len(urls) == 0 {
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
-			if getErr != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode(urls); err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-			}
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 

@@ -10,6 +10,7 @@ type Config struct {
 	BaseURL         string
 	FileStoragePath string
 	DatabaseDSN     string
+	AuthSecret      string
 }
 
 func Parse() Config {
@@ -18,6 +19,7 @@ func Parse() Config {
 	flag.StringVar(&cfg.BaseURL, "b", "http://localhost:8080", "base address for shortened URL")
 	flag.StringVar(&cfg.FileStoragePath, "f", "/tmp/url-storage.json", "file storage path")
 	flag.StringVar(&cfg.DatabaseDSN, "d", "", "database connection params")
+	flag.StringVar(&cfg.AuthSecret, "secret", "secretkey", "secret key for auth cookie signing")
 	flag.Parse()
 
 	if envServerAddr := os.Getenv("SERVER_ADDRESS"); envServerAddr != "" {
@@ -34,6 +36,10 @@ func Parse() Config {
 
 	if envDBDSN := os.Getenv("DATABASE_DSN"); envDBDSN != "" {
 		cfg.DatabaseDSN = envDBDSN
+	}
+
+	if envAuthSecret := os.Getenv("AUTH_SECRET"); envAuthSecret != "" {
+		cfg.AuthSecret = envAuthSecret
 	}
 
 	return cfg
