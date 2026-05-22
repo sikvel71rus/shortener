@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/sikvel71rus/shortener.git/internal/auth"
 	"github.com/sikvel71rus/shortener.git/internal/repository"
 	"io"
 	"net/http"
@@ -19,24 +20,52 @@ import (
 
 type mockURLService struct {
 	getFunc          func(ctx context.Context, id string) (string, error)
-	shortenFunc      func(ctx context.Context, url string) (string, error)
-	shortenBatchFunc func(ctx context.Context, batch []model.BatchRequest) ([]model.BatchResponse, error)
+	shortenFunc      func(ctx context.Context, url string, userID string) (string, error)
+	shortenBatchFunc func(ctx context.Context, batch []model.BatchRequest, userID string) ([]model.BatchResponse, error)
+	getUserURLsFunc  func(ctx context.Context, userID string) ([]model.UserURL, error)
+	countURLsFunc    func(ctx context.Context) (int, error)
+	deleteUserURLsFn func(ctx context.Context, userID string, shortIDs []string) error
 	pingFunc         func(ctx context.Context) error
+}
+
+func init() {
+	_ = auth.SetSecret("test-secret")
 }
 
 func (m *mockURLService) GetOriginalURL(ctx context.Context, id string) (string, error) {
 	return m.getFunc(ctx, id)
 }
 
-func (m *mockURLService) ShortenURL(ctx context.Context, url string) (string, error) {
-	return m.shortenFunc(ctx, url)
+func (m *mockURLService) ShortenURL(ctx context.Context, url string, userID string) (string, error) {
+	return m.shortenFunc(ctx, url, userID)
 }
 
-func (m *mockURLService) ShortenBatch(ctx context.Context, batch []model.BatchRequest) ([]model.BatchResponse, error) {
+func (m *mockURLService) ShortenBatch(ctx context.Context, batch []model.BatchRequest, userID string) ([]model.BatchResponse, error) {
 	if m.shortenBatchFunc != nil {
-		return m.shortenBatchFunc(ctx, batch)
+		return m.shortenBatchFunc(ctx, batch, userID)
 	}
 	return nil, nil
+}
+
+func (m *mockURLService) GetUserURLs(ctx context.Context, userID string) ([]model.UserURL, error) {
+	if m.getUserURLsFunc != nil {
+		return m.getUserURLsFunc(ctx, userID)
+	}
+	return nil, nil
+}
+
+func (m *mockURLService) DeleteUserURLs(ctx context.Context, userID string, shortIDs []string) error {
+	if m.deleteUserURLsFn != nil {
+		return m.deleteUserURLsFn(ctx, userID, shortIDs)
+	}
+	return nil
+}
+
+func (m *mockURLService) CountURLs(ctx context.Context) (int, error) {
+	if m.countURLsFunc != nil {
+		return m.countURLsFunc(ctx)
+	}
+	return 0, nil
 }
 
 func (m *mockURLService) Ping(ctx context.Context) error {
@@ -156,7 +185,8 @@ func TestURLHandler_PostHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := &mockURLService{
-				shortenFunc: func(ctx context.Context, url string) (string, error) {
+				shortenFunc: func(ctx context.Context, url string, userID string) (string, error) {
+					require.NotEmpty(t, userID)
 					return tt.mockID, tt.mockErr
 				},
 			}
@@ -172,6 +202,7 @@ func TestURLHandler_PostHandler(t *testing.T) {
 
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
 			assert.Equal(t, tt.want.contentType, result.Header.Get("Content-Type"))
+			assert.NotEmpty(t, result.Cookies())
 
 			respBody, err := io.ReadAll(result.Body)
 			require.NoError(t, err)
@@ -233,7 +264,8 @@ func TestURLHandler_BatchHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			srv := &mockURLService{
-				shortenBatchFunc: func(ctx context.Context, batch []model.BatchRequest) ([]model.BatchResponse, error) {
+				shortenBatchFunc: func(ctx context.Context, batch []model.BatchRequest, userID string) ([]model.BatchResponse, error) {
+					require.NotEmpty(t, userID)
 					return tt.mockRes, tt.mockErr
 				},
 			}
@@ -252,6 +284,9 @@ func TestURLHandler_BatchHandler(t *testing.T) {
 			if tt.want.contentType != "" {
 				assert.Equal(t, tt.want.contentType, result.Header.Get("Content-Type"))
 			}
+			if tt.want.statusCode == http.StatusCreated {
+				assert.NotEmpty(t, result.Cookies())
+			}
 
 			if tt.want.statusCode == http.StatusCreated {
 				var respBody []model.BatchResponse
@@ -262,4 +297,50 @@ func TestURLHandler_BatchHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestURLHandler_GetHandlerDeleted(t *testing.T) {
+	srv := &mockURLService{
+		getFunc: func(ctx context.Context, id string) (string, error) {
+			return "", repository.ErrDeleted
+		},
+	}
+	h := NewURLHandler(srv)
+
+	r := chi.NewRouter()
+	r.Get("/{id}", h.GetURLHandler)
+
+	req := httptest.NewRequest(http.MethodGet, "/deleted", nil)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	res := w.Result()
+	defer res.Body.Close()
+
+	assert.Equal(t, http.StatusGone, res.StatusCode)
+}
+
+func TestURLHandler_DeleteUserURLsHandler(t *testing.T) {
+	token, err := auth.BuildToken("user-1")
+	require.NoError(t, err)
+
+	srv := &mockURLService{
+		deleteUserURLsFn: func(ctx context.Context, userID string, shortIDs []string) error {
+			assert.Equal(t, "user-1", userID)
+			assert.Equal(t, []string{"abc123", "def456"}, shortIDs)
+			return nil
+		},
+	}
+	h := NewURLHandler(srv)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/user/urls", strings.NewReader(`["abc123","def456"]`))
+	req.AddCookie(&http.Cookie{Name: auth.CookieName, Value: token})
+	w := httptest.NewRecorder()
+
+	h.DeleteUserURLsHandler(w, req)
+
+	res := w.Result()
+	defer res.Body.Close()
+
+	assert.Equal(t, http.StatusAccepted, res.StatusCode)
 }

@@ -1,10 +1,16 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/sikvel71rus/shortener.git/internal/auth"
 	"github.com/sikvel71rus/shortener.git/internal/config/starter"
 	"github.com/sikvel71rus/shortener.git/internal/handler"
 	"github.com/sikvel71rus/shortener.git/internal/logger"
@@ -18,6 +24,10 @@ func main() {
 
 	if err := logger.Initialize("info"); err != nil {
 		panic(err)
+	}
+
+	if err := auth.SetSecret(starterCfg.AuthSecret); err != nil {
+		log.Fatalf("Ошибка инициализации секрета авторизации: %v", err)
 	}
 
 	var repo repository.URLRepo
@@ -48,6 +58,7 @@ func main() {
 	defer repo.Close()
 
 	srv := service.NewURLService(repo, starterCfg.BaseURL)
+	defer srv.Close()
 	h := handler.NewURLHandler(srv)
 
 	r := chi.NewRouter()
@@ -62,5 +73,37 @@ func main() {
 	r.Get("/{id}", h.GetURLHandler)
 	r.Get("/ping", h.PingHandler)
 	r.Post("/api/shorten/batch", h.BatchHandler)
-	log.Fatal(http.ListenAndServe(starterCfg.ServerAddress, r))
+	r.Get("/api/user/urls", h.UserURLsHandler)
+	r.Delete("/api/user/urls", h.DeleteUserURLsHandler)
+
+	server := &http.Server{
+		Addr:    starterCfg.ServerAddress,
+		Handler: r,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	serverErrCh := make(chan error, 1)
+	go func() {
+		serverErrCh <- server.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serverErrCh:
+		if err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Ошибка запуска сервера: %v", err)
+		}
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			log.Printf("Ошибка graceful shutdown: %v", err)
+		}
+
+		if err := <-serverErrCh; err != nil && err != http.ErrServerClosed {
+			log.Printf("Ошибка остановки сервера: %v", err)
+		}
+	}
 }

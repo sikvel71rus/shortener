@@ -21,7 +21,13 @@ func (h *URLHandler) ShortenJSONHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	url, err := h.srv.ShortenURL(r.Context(), req.URL)
+	userID, err := h.ensureUserID(w, r)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	url, err := h.srv.ShortenURL(r.Context(), req.URL, userID)
 
 	resp := model.ShortenResponse{
 		Result: url,
