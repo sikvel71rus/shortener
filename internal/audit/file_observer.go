@@ -12,6 +12,7 @@ type FileObserver struct {
 	mu   sync.Mutex
 }
 
+// NewFileObserver creates an observer that appends audit events to a file.
 func NewFileObserver(path string) *FileObserver {
 	if path == "" {
 		return nil
@@ -20,6 +21,7 @@ func NewFileObserver(path string) *FileObserver {
 	return &FileObserver{path: path}
 }
 
+// Notify writes the audit event as one JSON line to the configured file.
 func (o *FileObserver) Notify(_ context.Context, event Event) error {
 	payload, err := json.Marshal(event)
 	if err != nil {

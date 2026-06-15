@@ -12,6 +12,7 @@ import (
 const shortIDLength = 6
 const shortIDAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+// URLService provides business logic for shortened URLs.
 type URLService struct {
 	repo      repository.URLRepo
 	baseURL   string
@@ -40,6 +41,7 @@ func NewURLService(repo repository.URLRepo, baseURL string) *URLService {
 	return svc
 }
 
+// ShortenURL creates a short URL for the provided original URL.
 func (s *URLService) ShortenURL(ctx context.Context, url string, userID string) (string, error) {
 	id := generateID()
 	err := s.repo.SaveURL(ctx, id, url, userID)
@@ -55,10 +57,12 @@ func (s *URLService) ShortenURL(ctx context.Context, url string, userID string) 
 	return s.shortBase + id, nil
 }
 
+// GetOriginalURL resolves a short ID to its original URL.
 func (s *URLService) GetOriginalURL(ctx context.Context, id string) (string, error) {
 	return s.repo.GetURL(ctx, id)
 }
 
+// Ping checks that the underlying storage is available.
 func (s *URLService) Ping(ctx context.Context) error {
 	return s.repo.Ping(ctx)
 }
@@ -71,6 +75,7 @@ func generateID() string {
 	return string(b[:])
 }
 
+// ShortenBatch creates shortened URLs for all items in the batch.
 func (s *URLService) ShortenBatch(ctx context.Context, batch []model.BatchRequest, userID string) ([]model.BatchResponse, error) {
 	records := make([]model.BatchRecord, 0, len(batch))
 	result := make([]model.BatchResponse, 0, len(batch))
@@ -96,6 +101,7 @@ func (s *URLService) ShortenBatch(ctx context.Context, batch []model.BatchReques
 	return result, nil
 }
 
+// GetUserURLs returns all non-deleted URLs belonging to the user.
 func (s *URLService) GetUserURLs(ctx context.Context, userID string) ([]model.UserURL, error) {
 	urls, err := s.repo.GetUserURLs(ctx, userID)
 	if err != nil {
@@ -109,6 +115,7 @@ func (s *URLService) GetUserURLs(ctx context.Context, userID string) ([]model.Us
 	return urls, nil
 }
 
+// DeleteUserURLs schedules deletion of user-owned shortened URLs.
 func (s *URLService) DeleteUserURLs(ctx context.Context, userID string, shortIDs []string) error {
 	if len(shortIDs) == 0 {
 		return nil
@@ -125,6 +132,7 @@ func (s *URLService) DeleteUserURLs(ctx context.Context, userID string, shortIDs
 	return nil
 }
 
+// CountURLs returns the total number of stored shortened URLs.
 func (s *URLService) CountURLs(ctx context.Context) (int, error) {
 	return s.repo.CountURLs(ctx)
 }
@@ -141,6 +149,7 @@ func (s *URLService) deleteURLs(shortIDs []string, userID string) {
 	_ = s.repo.DeleteUserURLs(context.Background(), userID, shortIDs)
 }
 
+// Close gracefully stops background workers owned by the service.
 func (s *URLService) Close() {
 	s.closeOnce.Do(func() {
 		close(s.deleteCh)

@@ -12,17 +12,22 @@ import (
 	"sync"
 )
 
+// CookieName is the name of the auth cookie used by the shortener service.
 const CookieName = "user_token"
 
 var (
+	// ErrInvalidToken indicates that the provided auth token is malformed or has an invalid signature.
 	ErrInvalidToken = errors.New("invalid auth token")
-	ErrEmptyUserID  = errors.New("empty user id")
-	ErrEmptySecret  = errors.New("empty auth secret")
+	// ErrEmptyUserID indicates that an empty user ID was provided where a non-empty one is required.
+	ErrEmptyUserID = errors.New("empty user id")
+	// ErrEmptySecret indicates that the auth secret is not configured.
+	ErrEmptySecret = errors.New("empty auth secret")
 
 	secretMu  sync.RWMutex
 	secretKey string
 )
 
+// SetSecret configures the secret used to sign and validate auth cookies.
 func SetSecret(secret string) error {
 	if strings.TrimSpace(secret) == "" {
 		return ErrEmptySecret
@@ -35,6 +40,7 @@ func SetSecret(secret string) error {
 	return nil
 }
 
+// NewSignedCookie creates a new signed auth cookie and returns its user ID.
 func NewSignedCookie() (*http.Cookie, string, error) {
 	userID, err := generateUserID()
 	if err != nil {
@@ -54,6 +60,7 @@ func NewSignedCookie() (*http.Cookie, string, error) {
 	}, userID, nil
 }
 
+// BuildToken signs the provided user ID and returns a cookie token value.
 func BuildToken(userID string) (string, error) {
 	if strings.TrimSpace(userID) == "" {
 		return "", ErrEmptyUserID
@@ -72,6 +79,7 @@ func BuildToken(userID string) (string, error) {
 	return payload + "." + signature, nil
 }
 
+// ParseUserID validates a token and extracts the user ID from it.
 func ParseUserID(token string) (string, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 2 {

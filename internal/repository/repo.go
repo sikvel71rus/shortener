@@ -6,6 +6,7 @@ import (
 	"github.com/sikvel71rus/shortener.git/internal/model"
 )
 
+// URLRepo describes storage operations required by the URL service.
 type URLRepo interface {
 	SaveURL(ctx context.Context, id string, originalURL string, userID string) error
 	GetURL(ctx context.Context, id string) (string, error)
@@ -18,6 +19,11 @@ type URLRepo interface {
 	Close() error
 }
 
+// ErrConflict indicates that the original URL already exists in storage.
 var ErrConflict = errors.New("URL already exists")
+
+// ErrNoUserURLs indicates that no URLs were found for the user.
 var ErrNoUserURLs = errors.New("user has no urls")
+
+// ErrDeleted indicates that a short URL exists but is marked as deleted.
 var ErrDeleted = errors.New("url deleted")

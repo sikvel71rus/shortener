@@ -5,6 +5,7 @@ import (
 	"os"
 )
 
+// Config stores runtime settings for the shortener server.
 type Config struct {
 	ServerAddress   string
 	BaseURL         string
@@ -15,6 +16,7 @@ type Config struct {
 	AuditURL        string
 }
 
+// Parse reads configuration values from flags and environment variables.
 func Parse() Config {
 	cfg := Config{}
 	flag.StringVar(&cfg.ServerAddress, "a", "localhost:8080", "address to run HTTP server")

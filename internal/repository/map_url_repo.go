@@ -21,6 +21,7 @@ type MapURLRepo struct {
 	counter  int
 }
 
+// NewMapURLRepo creates an in-memory repository with optional file persistence.
 func NewMapURLRepo(filePath string) (*MapURLRepo, error) {
 	repo := &MapURLRepo{
 		urls:     make(map[string]string),

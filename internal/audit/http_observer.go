@@ -14,6 +14,7 @@ type HTTPObserver struct {
 	client *http.Client
 }
 
+// NewHTTPObserver creates an observer that posts audit events to a remote endpoint.
 func NewHTTPObserver(target string) (*HTTPObserver, error) {
 	if target == "" {
 		return nil, nil
@@ -29,6 +30,7 @@ func NewHTTPObserver(target string) (*HTTPObserver, error) {
 	}, nil
 }
 
+// Notify sends the audit event to the configured HTTP endpoint.
 func (o *HTTPObserver) Notify(ctx context.Context, event Event) error {
 	payload, err := json.Marshal(event)
 	if err != nil {

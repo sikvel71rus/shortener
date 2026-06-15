@@ -8,6 +8,7 @@ import (
 	"net/http"
 )
 
+// ShortenJSONHandler handles POST /api/shorten requests with a JSON payload.
 func (h *URLHandler) ShortenJSONHandler(w http.ResponseWriter, r *http.Request) {
 	var req model.ShortenRequest
 

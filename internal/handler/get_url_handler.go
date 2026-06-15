@@ -7,6 +7,7 @@ import (
 	"net/http"
 )
 
+// GetURLHandler handles GET /{id} requests and redirects to the original URL.
 func (h *URLHandler) GetURLHandler(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	url, err := h.srv.GetOriginalURL(r.Context(), id)

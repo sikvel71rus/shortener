@@ -7,6 +7,7 @@ import (
 	"github.com/sikvel71rus/shortener.git/internal/model"
 )
 
+// DeleteUserURLsHandler handles DELETE /api/user/urls requests for the current user.
 func (h *URLHandler) DeleteUserURLsHandler(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.getUserIDFromRequest(r)
 	if err != nil || userID == "" {

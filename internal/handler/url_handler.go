@@ -14,6 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// URLService describes the business operations required by URLHandler.
 type URLService interface {
 	GetOriginalURL(ctx context.Context, id string) (string, error)
 	ShortenURL(ctx context.Context, url string, userID string) (string, error)
@@ -24,11 +25,13 @@ type URLService interface {
 	CountURLs(ctx context.Context) (int, error)
 }
 
+// URLHandler serves HTTP requests for URL-shortener endpoints.
 type URLHandler struct {
 	srv   URLService
 	audit audit.Publisher
 }
 
+// NewURLHandler creates a URL handler with an optional audit publisher.
 func NewURLHandler(srv URLService, publishers ...audit.Publisher) *URLHandler {
 	var publisher audit.Publisher
 	if len(publishers) > 0 {
