@@ -52,4 +52,6 @@ func (h *URLHandler) ShortenJSONHandler(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
+
+	h.publishAuditEvent(r.Context(), "shorten", userID, req.URL)
 }

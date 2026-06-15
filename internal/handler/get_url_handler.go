@@ -20,4 +20,11 @@ func (h *URLHandler) GetURLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Location", url)
 	w.WriteHeader(http.StatusTemporaryRedirect)
+
+	userID, err := h.getUserIDFromRequest(r)
+	if err != nil {
+		userID = ""
+	}
+
+	h.publishAuditEvent(r.Context(), "follow", userID, url)
 }

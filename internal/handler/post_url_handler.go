@@ -33,4 +33,5 @@ func (h *URLHandler) PostURLHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 	fmt.Fprintf(w, "%s", id)
+	h.publishAuditEvent(r.Context(), "shorten", userID, string(body))
 }

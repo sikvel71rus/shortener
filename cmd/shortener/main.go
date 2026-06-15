@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/sikvel71rus/shortener.git/internal/audit"
 	"github.com/sikvel71rus/shortener.git/internal/auth"
 	"github.com/sikvel71rus/shortener.git/internal/config/starter"
 	"github.com/sikvel71rus/shortener.git/internal/handler"
@@ -59,7 +60,21 @@ func main() {
 
 	srv := service.NewURLService(repo, starterCfg.BaseURL)
 	defer srv.Close()
-	h := handler.NewURLHandler(srv)
+
+	auditObservers := make([]audit.Observer, 0, 2)
+	if observer := audit.NewFileObserver(starterCfg.AuditFile); observer != nil {
+		auditObservers = append(auditObservers, observer)
+	}
+
+	httpObserver, err := audit.NewHTTPObserver(starterCfg.AuditURL)
+	if err != nil {
+		log.Fatalf("Ошибка инициализации HTTP-аудита: %v", err)
+	}
+	if httpObserver != nil {
+		auditObservers = append(auditObservers, httpObserver)
+	}
+
+	h := handler.NewURLHandler(srv, audit.NewBroadcaster(auditObservers...))
 
 	r := chi.NewRouter()
 
