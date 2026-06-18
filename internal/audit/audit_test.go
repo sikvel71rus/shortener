@@ -66,6 +66,14 @@ func TestHTTPObserverNotify(t *testing.T) {
 	assert.Equal(t, event, actual)
 }
 
+func TestNewHTTPObserverSetsClientTimeout(t *testing.T) {
+	observer, err := NewHTTPObserver("https://audit.example.test")
+	require.NoError(t, err)
+	require.NotNil(t, observer)
+
+	assert.Equal(t, httpClientTimeout, observer.client.Timeout)
+}
+
 type roundTripFunc func(r *http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) {

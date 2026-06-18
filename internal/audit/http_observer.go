@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 )
+
+const httpClientTimeout = time.Second
 
 type HTTPObserver struct {
 	target string
@@ -26,7 +29,7 @@ func NewHTTPObserver(target string) (*HTTPObserver, error) {
 
 	return &HTTPObserver{
 		target: target,
-		client: &http.Client{},
+		client: &http.Client{Timeout: httpClientTimeout},
 	}, nil
 }
 
