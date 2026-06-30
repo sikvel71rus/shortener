@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// PingHandler handles GET /ping requests and checks repository availability.
 func (h *URLHandler) PingHandler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 1*time.Second)
 	defer cancel()

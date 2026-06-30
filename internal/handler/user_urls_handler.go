@@ -9,6 +9,7 @@ import (
 	"github.com/sikvel71rus/shortener.git/internal/repository"
 )
 
+// UserURLsHandler handles GET /api/user/urls requests for the current user.
 func (h *URLHandler) UserURLsHandler(w http.ResponseWriter, r *http.Request) {
 	cookie, err := r.Cookie(auth.CookieName)
 	if err != nil {

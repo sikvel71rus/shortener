@@ -8,6 +8,7 @@ import (
 	"net/http"
 )
 
+// ShortenJSONHandler handles POST /api/shorten requests with a JSON payload.
 func (h *URLHandler) ShortenJSONHandler(w http.ResponseWriter, r *http.Request) {
 	var req model.ShortenRequest
 
@@ -52,4 +53,6 @@ func (h *URLHandler) ShortenJSONHandler(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}
+
+	h.publishAuditEvent(r.Context(), "shorten", userID, req.URL)
 }

@@ -3,12 +3,18 @@ package handler
 import (
 	"context"
 	"errors"
+	"time"
+
+	"github.com/sikvel71rus/shortener.git/internal/audit"
+	"github.com/sikvel71rus/shortener.git/internal/logger"
 	"github.com/sikvel71rus/shortener.git/internal/model"
 	"net/http"
 
 	"github.com/sikvel71rus/shortener.git/internal/auth"
+	"go.uber.org/zap"
 )
 
+// URLService describes the business operations required by URLHandler.
 type URLService interface {
 	GetOriginalURL(ctx context.Context, id string) (string, error)
 	ShortenURL(ctx context.Context, url string, userID string) (string, error)
@@ -19,12 +25,23 @@ type URLService interface {
 	CountURLs(ctx context.Context) (int, error)
 }
 
+// URLHandler serves HTTP requests for URL-shortener endpoints.
 type URLHandler struct {
-	srv URLService
+	srv   URLService
+	audit audit.Publisher
 }
 
-func NewURLHandler(srv URLService) *URLHandler {
-	return &URLHandler{srv: srv}
+// NewURLHandler creates a URL handler with an optional audit publisher.
+func NewURLHandler(srv URLService, publishers ...audit.Publisher) *URLHandler {
+	var publisher audit.Publisher
+	if len(publishers) > 0 {
+		publisher = publishers[0]
+	}
+
+	return &URLHandler{
+		srv:   srv,
+		audit: publisher,
+	}
 }
 
 func (h *URLHandler) ensureUserID(w http.ResponseWriter, r *http.Request) (string, error) {
@@ -61,4 +78,25 @@ func (h *URLHandler) issueNewCookie(w http.ResponseWriter) (string, error) {
 
 	http.SetCookie(w, cookie)
 	return userID, nil
+}
+
+func (h *URLHandler) publishAuditEvent(ctx context.Context, action string, userID string, url string) {
+	if h.audit == nil {
+		return
+	}
+
+	event := audit.Event{
+		Timestamp: time.Now().Unix(),
+		Action:    action,
+		UserID:    userID,
+		URL:       url,
+	}
+
+	if err := h.audit.Publish(ctx, event); err != nil {
+		logger.Log.Error("failed to publish audit event",
+			zap.String("action", action),
+			zap.String("url", url),
+			zap.Error(err),
+		)
+	}
 }

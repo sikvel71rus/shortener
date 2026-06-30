@@ -6,6 +6,7 @@ import (
 	"net/http"
 )
 
+// BatchHandler handles POST /api/shorten/batch requests with multiple URLs.
 func (h *URLHandler) BatchHandler(w http.ResponseWriter, r *http.Request) {
 	var req []model.BatchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

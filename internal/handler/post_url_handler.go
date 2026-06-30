@@ -8,6 +8,7 @@ import (
 	"net/http"
 )
 
+// PostURLHandler handles POST / requests with a plain-text original URL in the body.
 func (h *URLHandler) PostURLHandler(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
 	userID, err := h.ensureUserID(w, r)
@@ -33,4 +34,5 @@ func (h *URLHandler) PostURLHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
 	fmt.Fprintf(w, "%s", id)
+	h.publishAuditEvent(r.Context(), "shorten", userID, string(body))
 }

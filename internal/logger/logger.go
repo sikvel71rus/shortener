@@ -7,8 +7,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// Log is the shared application logger used across the project.
 var Log *zap.Logger = zap.NewNop()
 
+// Initialize prepares the shared application logger with the given level.
 func Initialize(level string) error {
 	lvl, err := zap.ParseAtomicLevel(level)
 	if err != nil {
@@ -48,6 +50,7 @@ func (r *loggingResponseWriter) WriteHeader(statusCode int) {
 	r.responseData.status = statusCode
 }
 
+// RequestLogger logs HTTP request metadata for each handled request.
 func RequestLogger(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

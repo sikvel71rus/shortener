@@ -13,12 +13,16 @@ import (
 
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
+
+// ErrNotFound indicates that the requested short URL was not found in PostgreSQL.
 var ErrNotFound = errors.New("url not found")
 
+// PostgresRepo stores short URLs in PostgreSQL.
 type PostgresRepo struct {
 	db *sql.DB
 }
 
+// NewPostgresRepo creates a PostgreSQL repository and applies migrations.
 func NewPostgresRepo(dsn string) (*PostgresRepo, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {

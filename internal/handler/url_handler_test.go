@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/sikvel71rus/shortener.git/internal/audit"
 	"github.com/sikvel71rus/shortener.git/internal/auth"
 	"github.com/sikvel71rus/shortener.git/internal/repository"
 	"io"
@@ -17,6 +18,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type mockAuditPublisher struct {
+	publishFunc func(ctx context.Context, event audit.Event) error
+}
+
+func (m *mockAuditPublisher) Publish(ctx context.Context, event audit.Event) error {
+	if m.publishFunc != nil {
+		return m.publishFunc(ctx, event)
+	}
+	return nil
+}
 
 type mockURLService struct {
 	getFunc          func(ctx context.Context, id string) (string, error)
@@ -86,6 +98,7 @@ func TestURLHandler_GetHandler(t *testing.T) {
 		mockRes string
 		mockErr error
 		want    want
+		wantURL string
 	}{
 		{
 			name:    "positive GET test #1",
@@ -96,6 +109,7 @@ func TestURLHandler_GetHandler(t *testing.T) {
 				statusCode: http.StatusTemporaryRedirect,
 				location:   "https://practicum.yandex.ru/",
 			},
+			wantURL: "https://practicum.yandex.ru/",
 		},
 		{
 			name:    "negative error not found GET test #2",
@@ -111,12 +125,18 @@ func TestURLHandler_GetHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var events []audit.Event
 			srv := &mockURLService{
 				getFunc: func(ctx context.Context, id string) (string, error) {
 					return tt.mockRes, tt.mockErr
 				},
 			}
-			h := NewURLHandler(srv)
+			h := NewURLHandler(srv, &mockAuditPublisher{
+				publishFunc: func(ctx context.Context, event audit.Event) error {
+					events = append(events, event)
+					return nil
+				},
+			})
 
 			r := chi.NewRouter()
 			r.Get("/{id}", h.GetURLHandler)
@@ -130,6 +150,13 @@ func TestURLHandler_GetHandler(t *testing.T) {
 
 			assert.Equal(t, tt.want.statusCode, result.StatusCode)
 			assert.Equal(t, tt.want.location, result.Header.Get("Location"))
+			if tt.want.statusCode == http.StatusTemporaryRedirect {
+				require.Len(t, events, 1)
+				assert.Equal(t, audit.ActionFollow, events[0].Action)
+				assert.Equal(t, tt.wantURL, events[0].URL)
+			} else {
+				assert.Empty(t, events)
+			}
 		})
 	}
 }
@@ -184,13 +211,19 @@ func TestURLHandler_PostHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var events []audit.Event
 			srv := &mockURLService{
 				shortenFunc: func(ctx context.Context, url string, userID string) (string, error) {
 					require.NotEmpty(t, userID)
 					return tt.mockID, tt.mockErr
 				},
 			}
-			h := NewURLHandler(srv)
+			h := NewURLHandler(srv, &mockAuditPublisher{
+				publishFunc: func(ctx context.Context, event audit.Event) error {
+					events = append(events, event)
+					return nil
+				},
+			})
 
 			request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tt.body))
 			w := httptest.NewRecorder()
@@ -207,8 +240,48 @@ func TestURLHandler_PostHandler(t *testing.T) {
 			respBody, err := io.ReadAll(result.Body)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want.body, string(respBody))
+			if tt.want.statusCode == http.StatusCreated {
+				require.Len(t, events, 1)
+				assert.Equal(t, audit.ActionShorten, events[0].Action)
+				assert.Equal(t, tt.body, events[0].URL)
+				assert.NotEmpty(t, events[0].UserID)
+			} else {
+				assert.Empty(t, events)
+			}
 		})
 	}
+}
+
+func TestURLHandler_ShortenJSONHandlerPublishesAudit(t *testing.T) {
+	var events []audit.Event
+
+	srv := &mockURLService{
+		shortenFunc: func(ctx context.Context, url string, userID string) (string, error) {
+			require.Equal(t, "https://practicum.yandex.ru/", url)
+			require.NotEmpty(t, userID)
+			return "http://localhost:8080/short", nil
+		},
+	}
+	h := NewURLHandler(srv, &mockAuditPublisher{
+		publishFunc: func(ctx context.Context, event audit.Event) error {
+			events = append(events, event)
+			return nil
+		},
+	})
+
+	request := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader(`{"url":"https://practicum.yandex.ru/"}`))
+	w := httptest.NewRecorder()
+
+	h.ShortenJSONHandler(w, request)
+
+	result := w.Result()
+	defer result.Body.Close()
+
+	assert.Equal(t, http.StatusCreated, result.StatusCode)
+	require.Len(t, events, 1)
+	assert.Equal(t, audit.ActionShorten, events[0].Action)
+	assert.Equal(t, "https://practicum.yandex.ru/", events[0].URL)
+	assert.NotEmpty(t, events[0].UserID)
 }
 
 func TestURLHandler_BatchHandler(t *testing.T) {
