@@ -10,7 +10,7 @@ type Pool[T resetter] struct {
 	pool sync.Pool
 }
 
-func New[T resetter]() *Pool[T] {
+func NewPool[T resetter]() *Pool[T] {
 	return &Pool[T]{}
 }
 
