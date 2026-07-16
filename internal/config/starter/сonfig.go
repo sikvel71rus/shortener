@@ -3,6 +3,7 @@ package starter
 import (
 	"flag"
 	"os"
+	"strconv"
 )
 
 // Config stores runtime settings for the shortener server.
@@ -14,6 +15,7 @@ type Config struct {
 	AuthSecret      string
 	AuditFile       string
 	AuditURL        string
+	EnableHTTPS     bool
 }
 
 // Parse reads configuration values from flags and environment variables.
@@ -26,6 +28,7 @@ func Parse() Config {
 	flag.StringVar(&cfg.AuthSecret, "secret", "secretkey", "secret key for auth cookie signing")
 	flag.StringVar(&cfg.AuditFile, "audit-file", "", "file path for audit log receiver")
 	flag.StringVar(&cfg.AuditURL, "audit-url", "", "URL for remote audit log receiver")
+	flag.BoolVar(&cfg.EnableHTTPS, "s", false, "enable HTTPS server")
 	flag.Parse()
 
 	if envServerAddr := os.Getenv("SERVER_ADDRESS"); envServerAddr != "" {
@@ -54,6 +57,11 @@ func Parse() Config {
 
 	if envAuditURL := os.Getenv("AUDIT_URL"); envAuditURL != "" {
 		cfg.AuditURL = envAuditURL
+	}
+
+	if envEnableHTTPS := os.Getenv("ENABLE_HTTPS"); envEnableHTTPS != "" {
+		enableHTTPS, err := strconv.ParseBool(envEnableHTTPS)
+		cfg.EnableHTTPS = err != nil || enableHTTPS
 	}
 
 	return cfg
