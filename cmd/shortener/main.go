@@ -35,6 +35,8 @@ var (
 	buildCommit  string
 )
 
+var shutdownSignals = []os.Signal{syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT}
+
 func main() {
 	printBuildInfo()
 
@@ -74,7 +76,11 @@ func main() {
 		log.Println("Используется хранилище: In-Memory")
 	}
 
-	defer repo.Close()
+	defer func() {
+		if err := repo.Close(); err != nil {
+			log.Printf("Ошибка закрытия хранилища: %v", err)
+		}
+	}()
 
 	srv := service.NewURLService(repo, starterCfg.BaseURL)
 	defer srv.Close()
@@ -118,7 +124,7 @@ func main() {
 		Handler: r,
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), shutdownSignals...)
 	defer stop()
 
 	serverErrCh := make(chan error, 1)
@@ -132,10 +138,7 @@ func main() {
 			log.Fatalf("Ошибка запуска сервера: %v", err)
 		}
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		if err := server.Shutdown(shutdownCtx); err != nil {
+		if err := server.Shutdown(context.Background()); err != nil {
 			log.Printf("Ошибка graceful shutdown: %v", err)
 		}
 

@@ -3,6 +3,7 @@ package storage
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"os"
 )
 
@@ -87,5 +88,5 @@ func (p *Producer) Close() error {
 	if p.file == nil {
 		return nil
 	}
-	return p.file.Close()
+	return errors.Join(p.file.Sync(), p.file.Close())
 }

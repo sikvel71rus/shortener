@@ -123,6 +123,9 @@ func (r *MapURLRepo) Ping(ctx context.Context) error {
 }
 
 func (r *MapURLRepo) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if r.producer != nil {
 		return r.producer.Close()
 	}

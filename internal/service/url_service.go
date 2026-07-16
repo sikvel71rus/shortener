@@ -19,6 +19,8 @@ type URLService struct {
 	shortBase string
 	deleteCh  chan deleteTask
 	closeOnce sync.Once
+	closeMu   sync.RWMutex
+	closed    bool
 	wg        sync.WaitGroup
 }
 
@@ -122,14 +124,19 @@ func (s *URLService) DeleteUserURLs(ctx context.Context, userID string, shortIDs
 	}
 
 	idsCopy := append([]string(nil), shortIDs...)
+	task := deleteTask{userID: userID, shortIDs: idsCopy}
 
-	select {
-	case s.deleteCh <- deleteTask{userID: userID, shortIDs: idsCopy}:
-	default:
-		go s.deleteURLs(idsCopy, userID)
+	s.closeMu.RLock()
+	defer s.closeMu.RUnlock()
+	if s.closed {
+		return errors.New("service is closed")
 	}
-
-	return nil
+	select {
+	case s.deleteCh <- task:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // CountURLs returns the total number of stored shortened URLs.
@@ -152,7 +159,10 @@ func (s *URLService) deleteURLs(shortIDs []string, userID string) {
 // Close gracefully stops background workers owned by the service.
 func (s *URLService) Close() {
 	s.closeOnce.Do(func() {
+		s.closeMu.Lock()
+		s.closed = true
 		close(s.deleteCh)
+		s.closeMu.Unlock()
 		s.wg.Wait()
 	})
 }
