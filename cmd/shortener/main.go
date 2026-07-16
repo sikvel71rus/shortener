@@ -38,7 +38,10 @@ var (
 func main() {
 	printBuildInfo()
 
-	starterCfg := starter.Parse()
+	starterCfg, err := starter.Parse()
+	if err != nil {
+		log.Fatalf("Ошибка чтения конфигурации: %v", err)
+	}
 
 	if err := logger.Initialize("info"); err != nil {
 		panic(err)
@@ -49,8 +52,6 @@ func main() {
 	}
 
 	var repo repository.URLRepo
-	var err error
-
 	if starterCfg.DatabaseDSN != "" {
 		repo, err = repository.NewPostgresRepo(starterCfg.DatabaseDSN)
 		if err != nil {
