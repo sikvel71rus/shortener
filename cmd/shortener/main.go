@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -20,7 +21,15 @@ import (
 	"github.com/sikvel71rus/shortener.git/internal/service"
 )
 
+var (
+	buildVersion string
+	buildDate    string
+	buildCommit  string
+)
+
 func main() {
+	printBuildInfo()
+
 	starterCfg := starter.Parse()
 
 	if err := logger.Initialize("info"); err != nil {
@@ -121,4 +130,18 @@ func main() {
 			log.Printf("Ошибка остановки сервера: %v", err)
 		}
 	}
+}
+
+func printBuildInfo() {
+	fmt.Printf("Build version: %s\n", buildValue(buildVersion))
+	fmt.Printf("Build date: %s\n", buildValue(buildDate))
+	fmt.Printf("Build commit: %s\n", buildValue(buildCommit))
+}
+
+func buildValue(value string) string {
+	if value == "" {
+		return "N/A"
+	}
+
+	return value
 }
