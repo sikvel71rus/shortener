@@ -93,7 +93,7 @@ func main() {
 		auditObservers = append(auditObservers, httpObserver)
 	}
 
-	h := handler.NewURLHandler(srv, audit.NewBroadcaster(auditObservers...))
+	h := handler.NewURLHandlerWithTrustedSubnet(srv, starterCfg.TrustedSubnet, audit.NewBroadcaster(auditObservers...))
 
 	r := chi.NewRouter()
 
@@ -108,6 +108,7 @@ func main() {
 
 	r.Post("/", h.PostURLHandler)
 	r.Post("/api/shorten", h.ShortenJSONHandler)
+	r.Get("/api/internal/stats", h.StatsHandler)
 	r.Get("/{id}", h.GetURLHandler)
 	r.Get("/ping", h.PingHandler)
 	r.Post("/api/shorten/batch", h.BatchHandler)

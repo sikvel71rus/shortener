@@ -48,6 +48,10 @@ func (r *blockingDeleteRepo) CountURLs(ctx context.Context) (int, error) {
 	return 0, nil
 }
 
+func (r *blockingDeleteRepo) CountUsers(ctx context.Context) (int, error) {
+	return 0, nil
+}
+
 func (r *blockingDeleteRepo) Ping(ctx context.Context) error {
 	return nil
 }

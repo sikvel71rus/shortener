@@ -18,6 +18,7 @@ type Config struct {
 	AuditFile       string
 	AuditURL        string
 	EnableHTTPS     bool
+	TrustedSubnet   string
 }
 
 type fileConfig struct {
@@ -29,6 +30,7 @@ type fileConfig struct {
 	AuditFile       *string `json:"audit_file"`
 	AuditURL        *string `json:"audit_url"`
 	EnableHTTPS     *bool   `json:"enable_https"`
+	TrustedSubnet   *string `json:"trusted_subnet"`
 }
 
 // Parse reads configuration values from a file, flags and environment variables.
@@ -44,6 +46,7 @@ func Parse() (Config, error) {
 	flag.StringVar(&cfg.AuditFile, "audit-file", cfg.AuditFile, "file path for audit log receiver")
 	flag.StringVar(&cfg.AuditURL, "audit-url", cfg.AuditURL, "URL for remote audit log receiver")
 	flag.BoolVar(&cfg.EnableHTTPS, "s", cfg.EnableHTTPS, "enable HTTPS server")
+	flag.StringVar(&cfg.TrustedSubnet, "t", cfg.TrustedSubnet, "trusted subnet in CIDR notation")
 	flag.StringVar(&configPath, "c", "", "config file path")
 	flag.StringVar(&configPath, "config", "", "config file path")
 	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
@@ -123,6 +126,9 @@ func applyFileConfig(cfg *Config, path string) error {
 	if fileCfg.EnableHTTPS != nil {
 		cfg.EnableHTTPS = *fileCfg.EnableHTTPS
 	}
+	if fileCfg.TrustedSubnet != nil {
+		cfg.TrustedSubnet = *fileCfg.TrustedSubnet
+	}
 
 	return nil
 }
@@ -151,6 +157,9 @@ func applyDefinedFlags(cfg *Config, flagsCfg Config, definedFlags map[string]boo
 	}
 	if definedFlags["s"] {
 		cfg.EnableHTTPS = flagsCfg.EnableHTTPS
+	}
+	if definedFlags["t"] {
+		cfg.TrustedSubnet = flagsCfg.TrustedSubnet
 	}
 }
 
@@ -186,5 +195,9 @@ func applyEnv(cfg *Config) {
 	if envEnableHTTPS := os.Getenv("ENABLE_HTTPS"); envEnableHTTPS != "" {
 		enableHTTPS, err := strconv.ParseBool(envEnableHTTPS)
 		cfg.EnableHTTPS = err != nil || enableHTTPS
+	}
+
+	if envTrustedSubnet := os.Getenv("TRUSTED_SUBNET"); envTrustedSubnet != "" {
+		cfg.TrustedSubnet = envTrustedSubnet
 	}
 }

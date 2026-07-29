@@ -3,6 +3,8 @@ package handler
 import (
 	"context"
 	"errors"
+	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/sikvel71rus/shortener.git/internal/audit"
@@ -23,25 +25,46 @@ type URLService interface {
 	GetUserURLs(ctx context.Context, userID string) ([]model.UserURL, error)
 	DeleteUserURLs(ctx context.Context, userID string, shortIDs []string) error
 	CountURLs(ctx context.Context) (int, error)
+	CountUsers(ctx context.Context) (int, error)
 }
 
 // URLHandler serves HTTP requests for URL-shortener endpoints.
 type URLHandler struct {
-	srv   URLService
-	audit audit.Publisher
+	srv                     URLService
+	audit                   audit.Publisher
+	trustedSubnet           netip.Prefix
+	trustedSubnetConfigured bool
 }
 
 // NewURLHandler creates a URL handler with an optional audit publisher.
 func NewURLHandler(srv URLService, publishers ...audit.Publisher) *URLHandler {
+	return newURLHandler(srv, "", publishers...)
+}
+
+// NewURLHandlerWithTrustedSubnet creates a URL handler with a trusted subnet for internal endpoints.
+func NewURLHandlerWithTrustedSubnet(srv URLService, trustedSubnet string, publishers ...audit.Publisher) *URLHandler {
+	return newURLHandler(srv, trustedSubnet, publishers...)
+}
+
+func newURLHandler(srv URLService, trustedSubnet string, publishers ...audit.Publisher) *URLHandler {
 	var publisher audit.Publisher
 	if len(publishers) > 0 {
 		publisher = publishers[0]
 	}
 
-	return &URLHandler{
+	h := &URLHandler{
 		srv:   srv,
 		audit: publisher,
 	}
+
+	if trustedSubnet = strings.TrimSpace(trustedSubnet); trustedSubnet != "" {
+		if prefix, err := netip.ParsePrefix(trustedSubnet); err == nil {
+			h.trustedSubnet = prefix
+			h.trustedSubnetConfigured = true
+		}
+	}
+
+	return h
 }
 
 func (h *URLHandler) ensureUserID(w http.ResponseWriter, r *http.Request) (string, error) {
