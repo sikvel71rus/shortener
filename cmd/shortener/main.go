@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,11 +16,14 @@ import (
 	"github.com/sikvel71rus/shortener.git/internal/audit"
 	"github.com/sikvel71rus/shortener.git/internal/auth"
 	"github.com/sikvel71rus/shortener.git/internal/config/starter"
+	"github.com/sikvel71rus/shortener.git/internal/grpcserver"
 	"github.com/sikvel71rus/shortener.git/internal/handler"
 	"github.com/sikvel71rus/shortener.git/internal/logger"
 	"github.com/sikvel71rus/shortener.git/internal/middleware"
 	"github.com/sikvel71rus/shortener.git/internal/repository"
 	"github.com/sikvel71rus/shortener.git/internal/service"
+	"github.com/sikvel71rus/shortener.git/pkg/shortenerpb"
+	"google.golang.org/grpc"
 )
 
 var (
@@ -93,7 +98,10 @@ func main() {
 		auditObservers = append(auditObservers, httpObserver)
 	}
 
-	h := handler.NewURLHandlerWithTrustedSubnet(srv, starterCfg.TrustedSubnet, audit.NewBroadcaster(auditObservers...))
+	auditPublisher := audit.NewBroadcaster(auditObservers...)
+	h := handler.NewURLHandlerWithTrustedSubnet(srv, starterCfg.TrustedSubnet, auditPublisher)
+	grpcServer := grpc.NewServer(grpc.ForceServerCodec(shortenerpb.Codec()))
+	shortenerpb.RegisterShortenerServiceServer(grpcServer, grpcserver.New(srv, auditPublisher))
 
 	r := chi.NewRouter()
 
@@ -101,7 +109,8 @@ func main() {
 	if starterCfg.EnableHTTPS {
 		protocol = "HTTPS"
 	}
-	log.Printf("Сервер запущен на %s по %s, базовый адрес: %s", starterCfg.ServerAddress, protocol, starterCfg.BaseURL)
+	log.Printf("HTTP-сервер запущен на %s по %s, базовый адрес: %s", starterCfg.ServerAddress, protocol, starterCfg.BaseURL)
+	log.Printf("gRPC-сервер запущен на %s", starterCfg.GRPCAddress)
 
 	r.Use(logger.RequestLogger)
 	r.Use(middleware.GzipMiddleware)
@@ -123,15 +132,18 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), shutdownSignals...)
 	defer stop()
 
-	serverErrCh := make(chan error, 1)
+	serverErrCh := make(chan serverError, 2)
 	go func() {
-		serverErrCh <- serve(server, starterCfg.EnableHTTPS)
+		serverErrCh <- serverError{name: "HTTP", err: serve(server, starterCfg.EnableHTTPS)}
+	}()
+	go func() {
+		serverErrCh <- serverError{name: "gRPC", err: serveGRPC(grpcServer, starterCfg.GRPCAddress, starterCfg.EnableHTTPS)}
 	}()
 
 	select {
-	case err := <-serverErrCh:
-		if err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Ошибка запуска сервера: %v", err)
+	case serverErr := <-serverErrCh:
+		if !isExpectedServerError(serverErr.err) {
+			log.Fatalf("Ошибка запуска %s-сервера: %v", serverErr.name, serverErr.err)
 		}
 	case <-ctx.Done():
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
@@ -144,10 +156,32 @@ func main() {
 			}
 		}
 
-		if err := <-serverErrCh; err != nil && err != http.ErrServerClosed {
-			log.Printf("Ошибка остановки сервера: %v", err)
+		grpcStopped := make(chan struct{})
+		go func() {
+			grpcServer.GracefulStop()
+			close(grpcStopped)
+		}()
+		select {
+		case <-grpcStopped:
+		case <-shutdownCtx.Done():
+			grpcServer.Stop()
+		}
+
+		for i := 0; i < cap(serverErrCh); i++ {
+			select {
+			case serverErr := <-serverErrCh:
+				if !isExpectedServerError(serverErr.err) {
+					log.Printf("Ошибка остановки %s-сервера: %v", serverErr.name, serverErr.err)
+				}
+			default:
+			}
 		}
 	}
+}
+
+type serverError struct {
+	name string
+	err  error
 }
 
 func printBuildInfo() {
@@ -175,4 +209,26 @@ func serve(server *http.Server, enableHTTPS bool) error {
 	}
 
 	return server.Serve(listener)
+}
+
+func serveGRPC(server *grpc.Server, address string, enableHTTPS bool) error {
+	if enableHTTPS {
+		listener, err := newTLSListener(address)
+		if err != nil {
+			return err
+		}
+
+		return server.Serve(listener)
+	}
+
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		return err
+	}
+
+	return server.Serve(listener)
+}
+
+func isExpectedServerError(err error) bool {
+	return err == nil || errors.Is(err, http.ErrServerClosed) || errors.Is(err, grpc.ErrServerStopped)
 }

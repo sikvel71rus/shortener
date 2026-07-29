@@ -11,6 +11,7 @@ import (
 // Config stores runtime settings for the shortener server.
 type Config struct {
 	ServerAddress   string
+	GRPCAddress     string
 	BaseURL         string
 	FileStoragePath string
 	DatabaseDSN     string
@@ -23,6 +24,7 @@ type Config struct {
 
 type fileConfig struct {
 	ServerAddress   *string `json:"server_address"`
+	GRPCAddress     *string `json:"grpc_address"`
 	BaseURL         *string `json:"base_url"`
 	FileStoragePath *string `json:"file_storage_path"`
 	DatabaseDSN     *string `json:"database_dsn"`
@@ -39,6 +41,7 @@ func Parse() (Config, error) {
 	configPath := ""
 
 	flag.StringVar(&cfg.ServerAddress, "a", cfg.ServerAddress, "address to run HTTP server")
+	flag.StringVar(&cfg.GRPCAddress, "g", cfg.GRPCAddress, "address to run gRPC server")
 	flag.StringVar(&cfg.BaseURL, "b", cfg.BaseURL, "base address for shortened URL")
 	flag.StringVar(&cfg.FileStoragePath, "f", cfg.FileStoragePath, "file storage path")
 	flag.StringVar(&cfg.DatabaseDSN, "d", cfg.DatabaseDSN, "database connection params")
@@ -76,6 +79,7 @@ func Parse() (Config, error) {
 func defaultConfig() Config {
 	return Config{
 		ServerAddress:   "localhost:8080",
+		GRPCAddress:     "localhost:3200",
 		BaseURL:         "http://localhost:8080",
 		FileStoragePath: "/tmp/url-storage.json",
 		AuthSecret:      "secretkey",
@@ -104,6 +108,9 @@ func applyFileConfig(cfg *Config, path string) error {
 
 	if fileCfg.ServerAddress != nil {
 		cfg.ServerAddress = *fileCfg.ServerAddress
+	}
+	if fileCfg.GRPCAddress != nil {
+		cfg.GRPCAddress = *fileCfg.GRPCAddress
 	}
 	if fileCfg.BaseURL != nil {
 		cfg.BaseURL = *fileCfg.BaseURL
@@ -137,6 +144,9 @@ func applyDefinedFlags(cfg *Config, flagsCfg Config, definedFlags map[string]boo
 	if definedFlags["a"] {
 		cfg.ServerAddress = flagsCfg.ServerAddress
 	}
+	if definedFlags["g"] {
+		cfg.GRPCAddress = flagsCfg.GRPCAddress
+	}
 	if definedFlags["b"] {
 		cfg.BaseURL = flagsCfg.BaseURL
 	}
@@ -166,6 +176,10 @@ func applyDefinedFlags(cfg *Config, flagsCfg Config, definedFlags map[string]boo
 func applyEnv(cfg *Config) {
 	if envServerAddr := os.Getenv("SERVER_ADDRESS"); envServerAddr != "" {
 		cfg.ServerAddress = envServerAddr
+	}
+
+	if envGRPCAddr := os.Getenv("GRPC_ADDRESS"); envGRPCAddr != "" {
+		cfg.GRPCAddress = envGRPCAddr
 	}
 
 	if envBaseURL := os.Getenv("BASE_URL"); envBaseURL != "" {
