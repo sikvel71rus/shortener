@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sikvel71rus/shortener.git/internal/audit"
@@ -26,6 +27,9 @@ var (
 	buildCommit  string
 )
 
+const shutdownTimeout = 10 * time.Second
+
+// shutdownSignals is a slice because signal.NotifyContext accepts variadic values.
 var shutdownSignals = []os.Signal{syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT}
 
 func main() {
@@ -129,8 +133,14 @@ func main() {
 			log.Fatalf("Ошибка запуска сервера: %v", err)
 		}
 	case <-ctx.Done():
-		if err := server.Shutdown(context.Background()); err != nil {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+
+		if err := server.Shutdown(shutdownCtx); err != nil {
 			log.Printf("Ошибка graceful shutdown: %v", err)
+			if closeErr := server.Close(); closeErr != nil {
+				log.Printf("Ошибка принудительной остановки сервера: %v", closeErr)
+			}
 		}
 
 		if err := <-serverErrCh; err != nil && err != http.ErrServerClosed {

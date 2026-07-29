@@ -17,16 +17,14 @@ var errServiceClosed = errors.New("service is closed")
 
 // URLService provides business logic for shortened URLs.
 type URLService struct {
-	repo          repository.URLRepo
-	baseURL       string
-	shortBase     string
-	deleteCh      chan deleteTask
-	closing       chan struct{}
-	closeOnce     sync.Once
-	closeMu       sync.Mutex
-	closed        bool
-	deleteSenders sync.WaitGroup
-	wg            sync.WaitGroup
+	repo      repository.URLRepo
+	baseURL   string
+	shortBase string
+	deleteCh  chan deleteTask
+	done      chan struct{}
+	closeOnce sync.Once
+	closeMu   sync.RWMutex
+	wg        sync.WaitGroup
 }
 
 type deleteTask struct {
@@ -40,7 +38,7 @@ func NewURLService(repo repository.URLRepo, baseURL string) *URLService {
 		baseURL:   baseURL,
 		shortBase: baseURL + "/",
 		deleteCh:  make(chan deleteTask, 128),
-		closing:   make(chan struct{}),
+		done:      make(chan struct{}),
 	}
 
 	svc.wg.Add(1)
@@ -132,19 +130,25 @@ func (s *URLService) DeleteUserURLs(ctx context.Context, userID string, shortIDs
 	idsCopy := append([]string(nil), shortIDs...)
 	task := deleteTask{userID: userID, shortIDs: idsCopy}
 
-	s.closeMu.Lock()
-	if s.closed {
-		s.closeMu.Unlock()
+	select {
+	case <-s.done:
 		return errServiceClosed
+	default:
 	}
-	s.deleteSenders.Add(1)
-	s.closeMu.Unlock()
-	defer s.deleteSenders.Done()
+
+	s.closeMu.RLock()
+	defer s.closeMu.RUnlock()
+
+	select {
+	case <-s.done:
+		return errServiceClosed
+	default:
+	}
 
 	select {
 	case s.deleteCh <- task:
 		return nil
-	case <-s.closing:
+	case <-s.done:
 		return errServiceClosed
 	case <-ctx.Done():
 		return ctx.Err()
@@ -171,13 +175,10 @@ func (s *URLService) deleteURLs(shortIDs []string, userID string) {
 // Close gracefully stops background workers owned by the service.
 func (s *URLService) Close() {
 	s.closeOnce.Do(func() {
+		close(s.done)
 		s.closeMu.Lock()
-		s.closed = true
-		close(s.closing)
-		s.closeMu.Unlock()
-
-		s.deleteSenders.Wait()
 		close(s.deleteCh)
+		s.closeMu.Unlock()
 		s.wg.Wait()
 	})
 }
