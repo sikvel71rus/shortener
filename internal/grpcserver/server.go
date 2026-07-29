@@ -43,7 +43,7 @@ func New(srv URLService, publishers ...audit.Publisher) *Server {
 }
 
 func (s *Server) ShortenURL(ctx context.Context, req *shortenerpb.URLShortenRequest) (*shortenerpb.URLShortenResponse, error) {
-	if req == nil || strings.TrimSpace(req.Url) == "" {
+	if req == nil || strings.TrimSpace(req.URL) == "" {
 		return nil, status.Error(codes.InvalidArgument, "empty url")
 	}
 
@@ -52,22 +52,22 @@ func (s *Server) ShortenURL(ctx context.Context, req *shortenerpb.URLShortenRequ
 		return nil, status.Error(codes.Internal, "failed to issue auth token")
 	}
 
-	result, err := s.srv.ShortenURL(ctx, req.Url, userID)
+	result, err := s.srv.ShortenURL(ctx, req.URL, userID)
 	if err != nil && !errors.Is(err, repository.ErrConflict) {
 		return nil, status.Error(codes.Internal, "failed to shorten url")
 	}
 
-	s.publishAuditEvent(ctx, audit.ActionShorten, userID, req.Url)
+	s.publishAuditEvent(ctx, audit.ActionShorten, userID, req.URL)
 
 	return &shortenerpb.URLShortenResponse{Result: result}, nil
 }
 
 func (s *Server) ExpandURL(ctx context.Context, req *shortenerpb.URLExpandRequest) (*shortenerpb.URLExpandResponse, error) {
-	if req == nil || strings.TrimSpace(req.Id) == "" {
+	if req == nil || strings.TrimSpace(req.ID) == "" {
 		return nil, status.Error(codes.InvalidArgument, "empty id")
 	}
 
-	result, err := s.srv.GetOriginalURL(ctx, req.Id)
+	result, err := s.srv.GetOriginalURL(ctx, req.ID)
 	if err != nil {
 		if errors.Is(err, repository.ErrDeleted) {
 			return nil, status.Error(codes.FailedPrecondition, "url deleted")
@@ -101,11 +101,11 @@ func (s *Server) ListUserURLs(ctx context.Context, req *emptypb.Empty) (*shorten
 		return nil, status.Error(codes.Internal, "failed to list user urls")
 	}
 
-	response := &shortenerpb.UserURLsResponse{Url: make([]*shortenerpb.URLData, 0, len(urls))}
+	response := &shortenerpb.UserURLsResponse{URL: make([]*shortenerpb.URLData, 0, len(urls))}
 	for _, item := range urls {
-		response.Url = append(response.Url, &shortenerpb.URLData{
-			ShortUrl:    item.ShortURL,
-			OriginalUrl: item.OriginalURL,
+		response.URL = append(response.URL, &shortenerpb.URLData{
+			ShortURL:    item.ShortURL,
+			OriginalURL: item.OriginalURL,
 		})
 	}
 

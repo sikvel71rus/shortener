@@ -8,13 +8,13 @@ import (
 )
 
 const (
-	ShortenerService_ShortenURL_FullMethodName   = "/ShortenerService/ShortenURL"
-	ShortenerService_ExpandURL_FullMethodName    = "/ShortenerService/ExpandURL"
-	ShortenerService_ListUserURLs_FullMethodName = "/ShortenerService/ListUserURLs"
+	ShortenerServiceShortenURLFullMethodName   = "/ShortenerService/ShortenURL"
+	ShortenerServiceExpandURLFullMethodName    = "/ShortenerService/ExpandURL"
+	ShortenerServiceListUserURLsFullMethodName = "/ShortenerService/ListUserURLs"
 )
 
 type URLShortenRequest struct {
-	Url string
+	URL string
 }
 
 type URLShortenResponse struct {
@@ -22,7 +22,7 @@ type URLShortenResponse struct {
 }
 
 type URLExpandRequest struct {
-	Id string
+	ID string
 }
 
 type URLExpandResponse struct {
@@ -30,12 +30,12 @@ type URLExpandResponse struct {
 }
 
 type UserURLsResponse struct {
-	Url []*URLData
+	URL []*URLData
 }
 
 type URLData struct {
-	ShortUrl    string
-	OriginalUrl string
+	ShortURL    string
+	OriginalURL string
 }
 
 type ShortenerServiceClient interface {
@@ -54,7 +54,7 @@ func NewShortenerServiceClient(cc grpc.ClientConnInterface) ShortenerServiceClie
 
 func (c *shortenerServiceClient) ShortenURL(ctx context.Context, in *URLShortenRequest, opts ...grpc.CallOption) (*URLShortenResponse, error) {
 	out := new(URLShortenResponse)
-	err := c.cc.Invoke(ctx, ShortenerService_ShortenURL_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, ShortenerServiceShortenURLFullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (c *shortenerServiceClient) ShortenURL(ctx context.Context, in *URLShortenR
 
 func (c *shortenerServiceClient) ExpandURL(ctx context.Context, in *URLExpandRequest, opts ...grpc.CallOption) (*URLExpandResponse, error) {
 	out := new(URLExpandResponse)
-	err := c.cc.Invoke(ctx, ShortenerService_ExpandURL_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, ShortenerServiceExpandURLFullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (c *shortenerServiceClient) ExpandURL(ctx context.Context, in *URLExpandReq
 
 func (c *shortenerServiceClient) ListUserURLs(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*UserURLsResponse, error) {
 	out := new(UserURLsResponse)
-	err := c.cc.Invoke(ctx, ShortenerService_ListUserURLs_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, ShortenerServiceListUserURLsFullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -86,10 +86,10 @@ type ShortenerServiceServer interface {
 }
 
 func RegisterShortenerServiceServer(s grpc.ServiceRegistrar, srv ShortenerServiceServer) {
-	s.RegisterService(&ShortenerService_ServiceDesc, srv)
+	s.RegisterService(&ShortenerServiceServiceDesc, srv)
 }
 
-func _ShortenerService_ShortenURL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func shortenerServiceShortenURLHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(URLShortenRequest)
 	if err := dec(in); err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ func _ShortenerService_ShortenURL_Handler(srv interface{}, ctx context.Context, 
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ShortenerService_ShortenURL_FullMethodName,
+		FullMethod: ShortenerServiceShortenURLFullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ShortenerServiceServer).ShortenURL(ctx, req.(*URLShortenRequest))
@@ -107,7 +107,7 @@ func _ShortenerService_ShortenURL_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ShortenerService_ExpandURL_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func shortenerServiceExpandURLHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(URLExpandRequest)
 	if err := dec(in); err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func _ShortenerService_ExpandURL_Handler(srv interface{}, ctx context.Context, d
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ShortenerService_ExpandURL_FullMethodName,
+		FullMethod: ShortenerServiceExpandURLFullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ShortenerServiceServer).ExpandURL(ctx, req.(*URLExpandRequest))
@@ -125,7 +125,7 @@ func _ShortenerService_ExpandURL_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ShortenerService_ListUserURLs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func shortenerServiceListUserURLsHandler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
@@ -135,7 +135,7 @@ func _ShortenerService_ListUserURLs_Handler(srv interface{}, ctx context.Context
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ShortenerService_ListUserURLs_FullMethodName,
+		FullMethod: ShortenerServiceListUserURLsFullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ShortenerServiceServer).ListUserURLs(ctx, req.(*emptypb.Empty))
@@ -143,21 +143,21 @@ func _ShortenerService_ListUserURLs_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
-var ShortenerService_ServiceDesc = grpc.ServiceDesc{
+var ShortenerServiceServiceDesc = grpc.ServiceDesc{
 	ServiceName: "ShortenerService",
 	HandlerType: (*ShortenerServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "ShortenURL",
-			Handler:    _ShortenerService_ShortenURL_Handler,
+			Handler:    shortenerServiceShortenURLHandler,
 		},
 		{
 			MethodName: "ExpandURL",
-			Handler:    _ShortenerService_ExpandURL_Handler,
+			Handler:    shortenerServiceExpandURLHandler,
 		},
 		{
 			MethodName: "ListUserURLs",
-			Handler:    _ShortenerService_ListUserURLs_Handler,
+			Handler:    shortenerServiceListUserURLsHandler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

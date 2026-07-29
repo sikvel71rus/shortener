@@ -22,16 +22,16 @@ func (protoWireCodec) Name() string {
 func (protoWireCodec) Marshal(v any) ([]byte, error) {
 	switch msg := v.(type) {
 	case *URLShortenRequest:
-		return appendString(nil, 1, msg.Url), nil
+		return appendString(nil, 1, msg.URL), nil
 	case *URLShortenResponse:
 		return appendString(nil, 1, msg.Result), nil
 	case *URLExpandRequest:
-		return appendString(nil, 1, msg.Id), nil
+		return appendString(nil, 1, msg.ID), nil
 	case *URLExpandResponse:
 		return appendString(nil, 1, msg.Result), nil
 	case *UserURLsResponse:
 		var out []byte
-		for _, item := range msg.Url {
+		for _, item := range msg.URL {
 			out = appendBytes(out, 1, marshalURLData(item))
 		}
 		return out, nil
@@ -49,7 +49,7 @@ func (protoWireCodec) Unmarshal(data []byte, v any) error {
 	case *URLShortenRequest:
 		return scanFields(data, func(field int, wireType byte, raw []byte) error {
 			if field == 1 && wireType == 2 {
-				msg.Url = string(raw)
+				msg.URL = string(raw)
 			}
 			return nil
 		})
@@ -63,7 +63,7 @@ func (protoWireCodec) Unmarshal(data []byte, v any) error {
 	case *URLExpandRequest:
 		return scanFields(data, func(field int, wireType byte, raw []byte) error {
 			if field == 1 && wireType == 2 {
-				msg.Id = string(raw)
+				msg.ID = string(raw)
 			}
 			return nil
 		})
@@ -81,7 +81,7 @@ func (protoWireCodec) Unmarshal(data []byte, v any) error {
 				if err := (protoWireCodec{}).Unmarshal(raw, item); err != nil {
 					return err
 				}
-				msg.Url = append(msg.Url, item)
+				msg.URL = append(msg.URL, item)
 			}
 			return nil
 		})
@@ -92,9 +92,9 @@ func (protoWireCodec) Unmarshal(data []byte, v any) error {
 			}
 			switch field {
 			case 1:
-				msg.ShortUrl = string(raw)
+				msg.ShortURL = string(raw)
 			case 2:
-				msg.OriginalUrl = string(raw)
+				msg.OriginalURL = string(raw)
 			}
 			return nil
 		})
@@ -111,8 +111,8 @@ func marshalURLData(msg *URLData) []byte {
 	}
 
 	var out []byte
-	out = appendString(out, 1, msg.ShortUrl)
-	out = appendString(out, 2, msg.OriginalUrl)
+	out = appendString(out, 1, msg.ShortURL)
+	out = appendString(out, 2, msg.OriginalURL)
 	return out
 }
 

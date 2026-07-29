@@ -65,7 +65,7 @@ func TestShortenerServiceGRPC(t *testing.T) {
 
 	var header metadata.MD
 	shortenResp, err := client.ShortenURL(context.Background(),
-		&shortenerpb.URLShortenRequest{Url: "https://example.com/long"},
+		&shortenerpb.URLShortenRequest{URL: "https://example.com/long"},
 		grpc.Header(&header),
 	)
 	require.NoError(t, err)
@@ -77,15 +77,15 @@ func TestShortenerServiceGRPC(t *testing.T) {
 
 	ctx := metadata.AppendToOutgoingContext(context.Background(), authorizationHeader, authHeaders[0])
 
-	expandResp, err := client.ExpandURL(ctx, &shortenerpb.URLExpandRequest{Id: "abc123"})
+	expandResp, err := client.ExpandURL(ctx, &shortenerpb.URLExpandRequest{ID: "abc123"})
 	require.NoError(t, err)
 	assert.Equal(t, "https://example.com/long", expandResp.Result)
 
 	urlsResp, err := client.ListUserURLs(ctx, &emptypb.Empty{})
 	require.NoError(t, err)
-	require.Len(t, urlsResp.Url, 1)
-	assert.Equal(t, "http://localhost:8080/abc123", urlsResp.Url[0].ShortUrl)
-	assert.Equal(t, "https://example.com/long", urlsResp.Url[0].OriginalUrl)
+	require.Len(t, urlsResp.URL, 1)
+	assert.Equal(t, "http://localhost:8080/abc123", urlsResp.URL[0].ShortURL)
+	assert.Equal(t, "https://example.com/long", urlsResp.URL[0].OriginalURL)
 }
 
 func TestListUserURLsInvalidAuthorization(t *testing.T) {
@@ -117,7 +117,7 @@ func TestListUserURLsEmptyForNewUserAndNoURLs(t *testing.T) {
 	var header metadata.MD
 	resp, err := client.ListUserURLs(context.Background(), &emptypb.Empty{}, grpc.Header(&header))
 	require.NoError(t, err)
-	assert.Empty(t, resp.Url)
+	assert.Empty(t, resp.URL)
 	assert.Len(t, header.Get(authorizationHeader), 1)
 }
 
@@ -132,8 +132,8 @@ func newTestClient(t *testing.T, svc mockURLService) (shortenerpb.ShortenerServi
 		_ = server.Serve(listener)
 	}()
 
-	conn, err := grpc.DialContext(context.Background(),
-		"bufnet",
+	conn, err := grpc.NewClient(
+		"passthrough:///bufnet",
 		grpc.WithContextDialer(func(ctx context.Context, address string) (net.Conn, error) {
 			return listener.Dial()
 		}),
