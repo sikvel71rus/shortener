@@ -3,14 +3,17 @@ package service
 import (
 	"context"
 	"errors"
-	"github.com/sikvel71rus/shortener.git/internal/model"
-	"github.com/sikvel71rus/shortener.git/internal/repository"
 	"math/rand"
 	"sync"
+
+	"github.com/sikvel71rus/shortener.git/internal/model"
+	"github.com/sikvel71rus/shortener.git/internal/repository"
 )
 
 const shortIDLength = 6
 const shortIDAlphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+var errServiceClosed = errors.New("service is closed")
 
 // URLService provides business logic for shortened URLs.
 type URLService struct {
@@ -18,7 +21,9 @@ type URLService struct {
 	baseURL   string
 	shortBase string
 	deleteCh  chan deleteTask
+	done      chan struct{}
 	closeOnce sync.Once
+	closeMu   sync.RWMutex
 	wg        sync.WaitGroup
 }
 
@@ -33,6 +38,7 @@ func NewURLService(repo repository.URLRepo, baseURL string) *URLService {
 		baseURL:   baseURL,
 		shortBase: baseURL + "/",
 		deleteCh:  make(chan deleteTask, 128),
+		done:      make(chan struct{}),
 	}
 
 	svc.wg.Add(1)
@@ -122,14 +128,31 @@ func (s *URLService) DeleteUserURLs(ctx context.Context, userID string, shortIDs
 	}
 
 	idsCopy := append([]string(nil), shortIDs...)
+	task := deleteTask{userID: userID, shortIDs: idsCopy}
 
 	select {
-	case s.deleteCh <- deleteTask{userID: userID, shortIDs: idsCopy}:
+	case <-s.done:
+		return errServiceClosed
 	default:
-		go s.deleteURLs(idsCopy, userID)
 	}
 
-	return nil
+	s.closeMu.RLock()
+	defer s.closeMu.RUnlock()
+
+	select {
+	case <-s.done:
+		return errServiceClosed
+	default:
+	}
+
+	select {
+	case s.deleteCh <- task:
+		return nil
+	case <-s.done:
+		return errServiceClosed
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // CountURLs returns the total number of stored shortened URLs.
@@ -152,7 +175,10 @@ func (s *URLService) deleteURLs(shortIDs []string, userID string) {
 // Close gracefully stops background workers owned by the service.
 func (s *URLService) Close() {
 	s.closeOnce.Do(func() {
+		close(s.done)
+		s.closeMu.Lock()
 		close(s.deleteCh)
+		s.closeMu.Unlock()
 		s.wg.Wait()
 	})
 }

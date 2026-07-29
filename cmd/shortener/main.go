@@ -27,10 +27,18 @@ var (
 	buildCommit  string
 )
 
+const shutdownTimeout = 10 * time.Second
+
+// shutdownSignals is a slice because signal.NotifyContext accepts variadic values.
+var shutdownSignals = []os.Signal{syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT}
+
 func main() {
 	printBuildInfo()
 
-	starterCfg := starter.Parse()
+	starterCfg, err := starter.Parse()
+	if err != nil {
+		log.Fatalf("Ошибка чтения конфигурации: %v", err)
+	}
 
 	if err := logger.Initialize("info"); err != nil {
 		panic(err)
@@ -41,8 +49,6 @@ func main() {
 	}
 
 	var repo repository.URLRepo
-	var err error
-
 	if starterCfg.DatabaseDSN != "" {
 		repo, err = repository.NewPostgresRepo(starterCfg.DatabaseDSN)
 		if err != nil {
@@ -65,7 +71,11 @@ func main() {
 		log.Println("Используется хранилище: In-Memory")
 	}
 
-	defer repo.Close()
+	defer func() {
+		if err := repo.Close(); err != nil {
+			log.Printf("Ошибка закрытия хранилища: %v", err)
+		}
+	}()
 
 	srv := service.NewURLService(repo, starterCfg.BaseURL)
 	defer srv.Close()
@@ -87,7 +97,11 @@ func main() {
 
 	r := chi.NewRouter()
 
-	log.Printf("Сервер запущен на %s, базовый адрес: %s", starterCfg.ServerAddress, starterCfg.BaseURL)
+	protocol := "HTTP"
+	if starterCfg.EnableHTTPS {
+		protocol = "HTTPS"
+	}
+	log.Printf("Сервер запущен на %s по %s, базовый адрес: %s", starterCfg.ServerAddress, protocol, starterCfg.BaseURL)
 
 	r.Use(logger.RequestLogger)
 	r.Use(middleware.GzipMiddleware)
@@ -105,12 +119,12 @@ func main() {
 		Handler: r,
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), shutdownSignals...)
 	defer stop()
 
 	serverErrCh := make(chan error, 1)
 	go func() {
-		serverErrCh <- server.ListenAndServe()
+		serverErrCh <- serve(server, starterCfg.EnableHTTPS)
 	}()
 
 	select {
@@ -119,11 +133,14 @@ func main() {
 			log.Fatalf("Ошибка запуска сервера: %v", err)
 		}
 	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			log.Printf("Ошибка graceful shutdown: %v", err)
+			if closeErr := server.Close(); closeErr != nil {
+				log.Printf("Ошибка принудительной остановки сервера: %v", closeErr)
+			}
 		}
 
 		if err := <-serverErrCh; err != nil && err != http.ErrServerClosed {
@@ -144,4 +161,17 @@ func buildValue(value string) string {
 	}
 
 	return value
+}
+
+func serve(server *http.Server, enableHTTPS bool) error {
+	if !enableHTTPS {
+		return server.ListenAndServe()
+	}
+
+	listener, err := newTLSListener(server.Addr)
+	if err != nil {
+		return err
+	}
+
+	return server.Serve(listener)
 }
