@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -10,8 +11,9 @@ import (
 )
 
 type blockingDeleteRepo struct {
-	started chan struct{}
-	release chan struct{}
+	started     chan struct{}
+	release     chan struct{}
+	startedOnce sync.Once
 }
 
 func (r *blockingDeleteRepo) SaveURL(ctx context.Context, id string, originalURL string, userID string) error {
@@ -35,7 +37,9 @@ func (r *blockingDeleteRepo) GetUserURLs(ctx context.Context, userID string) ([]
 }
 
 func (r *blockingDeleteRepo) DeleteUserURLs(ctx context.Context, userID string, shortIDs []string) error {
-	close(r.started)
+	r.startedOnce.Do(func() {
+		close(r.started)
+	})
 	<-r.release
 	return nil
 }
@@ -87,5 +91,63 @@ func TestURLServiceCloseWaitsForQueuedDeletes(t *testing.T) {
 	case <-closed:
 	case <-time.After(time.Second):
 		t.Fatal("Close did not return after delete task finished")
+	}
+}
+
+func TestURLServiceCloseUnblocksPendingDeleteSend(t *testing.T) {
+	repo := &blockingDeleteRepo{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	svc := NewURLService(repo, "http://localhost")
+
+	if err := svc.DeleteUserURLs(context.Background(), "user-1", []string{"started"}); err != nil {
+		t.Fatalf("DeleteUserURLs returned error: %v", err)
+	}
+
+	select {
+	case <-repo.started:
+	case <-time.After(time.Second):
+		t.Fatal("delete task was not started")
+	}
+
+	for i := 0; i < cap(svc.deleteCh); i++ {
+		if err := svc.DeleteUserURLs(context.Background(), "user-1", []string{"queued"}); err != nil {
+			t.Fatalf("DeleteUserURLs returned error while filling queue: %v", err)
+		}
+	}
+
+	pendingDone := make(chan error, 1)
+	go func() {
+		pendingDone <- svc.DeleteUserURLs(context.Background(), "user-1", []string{"pending"})
+	}()
+
+	select {
+	case err := <-pendingDone:
+		t.Fatalf("pending DeleteUserURLs returned before Close: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	closeDone := make(chan struct{})
+	go func() {
+		svc.Close()
+		close(closeDone)
+	}()
+
+	select {
+	case err := <-pendingDone:
+		if !errors.Is(err, errServiceClosed) {
+			t.Fatalf("expected service closed error, got %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("pending DeleteUserURLs was not unblocked by Close")
+	}
+
+	close(repo.release)
+
+	select {
+	case <-closeDone:
+	case <-time.After(time.Second):
+		t.Fatal("Close did not return after queued deletes were released")
 	}
 }
