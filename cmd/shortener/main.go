@@ -32,7 +32,10 @@ var (
 	buildCommit  string
 )
 
-const shutdownTimeout = 10 * time.Second
+const (
+	serverCount     = 2
+	shutdownTimeout = 10 * time.Second
+)
 
 // shutdownSignals is a slice because signal.NotifyContext accepts variadic values.
 var shutdownSignals = []os.Signal{syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT}
@@ -100,7 +103,7 @@ func main() {
 
 	auditPublisher := audit.NewBroadcaster(auditObservers...)
 	h := handler.NewURLHandlerWithTrustedSubnet(srv, starterCfg.TrustedSubnet, auditPublisher)
-	grpcServer := grpc.NewServer(grpc.ForceServerCodec(shortenerpb.Codec()))
+	grpcServer := grpc.NewServer()
 	shortenerpb.RegisterShortenerServiceServer(grpcServer, grpcserver.New(srv, auditPublisher))
 
 	r := chi.NewRouter()
@@ -132,7 +135,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), shutdownSignals...)
 	defer stop()
 
-	serverErrCh := make(chan serverError, 2)
+	serverErrCh := make(chan serverError, serverCount)
 	go func() {
 		serverErrCh <- serverError{name: "HTTP", err: serve(server, starterCfg.EnableHTTPS)}
 	}()
@@ -167,13 +170,10 @@ func main() {
 			grpcServer.Stop()
 		}
 
-		for i := 0; i < cap(serverErrCh); i++ {
-			select {
-			case serverErr := <-serverErrCh:
-				if !isExpectedServerError(serverErr.err) {
-					log.Printf("Ошибка остановки %s-сервера: %v", serverErr.name, serverErr.err)
-				}
-			default:
+		for i := 0; i < serverCount; i++ {
+			serverErr := <-serverErrCh
+			if !isExpectedServerError(serverErr.err) {
+				log.Printf("Ошибка остановки %s-сервера: %v", serverErr.name, serverErr.err)
 			}
 		}
 	}

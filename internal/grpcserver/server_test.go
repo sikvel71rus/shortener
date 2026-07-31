@@ -121,11 +121,29 @@ func TestListUserURLsEmptyForNewUserAndNoURLs(t *testing.T) {
 	assert.Len(t, header.Get(authorizationHeader), 1)
 }
 
+func TestExpandURLIssuesAuthHeaderForNewUser(t *testing.T) {
+	require.NoError(t, auth.SetSecret("grpc-test-secret"))
+
+	client, cleanup := newTestClient(t, mockURLService{
+		getOriginalURL: func(ctx context.Context, id string) (string, error) {
+			assert.Equal(t, "abc123", id)
+			return "https://example.com/long", nil
+		},
+	})
+	defer cleanup()
+
+	var header metadata.MD
+	resp, err := client.ExpandURL(context.Background(), &shortenerpb.URLExpandRequest{ID: "abc123"}, grpc.Header(&header))
+	require.NoError(t, err)
+	assert.Equal(t, "https://example.com/long", resp.Result)
+	assert.Len(t, header.Get(authorizationHeader), 1)
+}
+
 func newTestClient(t *testing.T, svc mockURLService) (shortenerpb.ShortenerServiceClient, func()) {
 	t.Helper()
 
 	listener := bufconn.Listen(bufSize)
-	server := grpc.NewServer(grpc.ForceServerCodec(shortenerpb.Codec()))
+	server := grpc.NewServer()
 	shortenerpb.RegisterShortenerServiceServer(server, New(svc))
 
 	go func() {
@@ -138,7 +156,6 @@ func newTestClient(t *testing.T, svc mockURLService) (shortenerpb.ShortenerServi
 			return listener.Dial()
 		}),
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.ForceCodec(shortenerpb.Codec())),
 	)
 	require.NoError(t, err)
 

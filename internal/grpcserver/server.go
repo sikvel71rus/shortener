@@ -3,14 +3,15 @@ package grpcserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/sikvel71rus/shortener.git/internal/audit"
 	"github.com/sikvel71rus/shortener.git/internal/auth"
 	"github.com/sikvel71rus/shortener.git/internal/logger"
-	"github.com/sikvel71rus/shortener.git/internal/model"
 	"github.com/sikvel71rus/shortener.git/internal/repository"
+	"github.com/sikvel71rus/shortener.git/internal/service"
 	"github.com/sikvel71rus/shortener.git/pkg/shortenerpb"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -22,18 +23,14 @@ import (
 
 const authorizationHeader = "authorization"
 
-type URLService interface {
-	GetOriginalURL(ctx context.Context, id string) (string, error)
-	ShortenURL(ctx context.Context, url string, userID string) (string, error)
-	GetUserURLs(ctx context.Context, userID string) ([]model.UserURL, error)
-}
-
 type Server struct {
-	srv   URLService
+	shortenerpb.UnimplementedShortenerServiceServer
+
+	srv   service.URLGRPCFacade
 	audit audit.Publisher
 }
 
-func New(srv URLService, publishers ...audit.Publisher) *Server {
+func New(srv service.URLGRPCFacade, publishers ...audit.Publisher) *Server {
 	var publisher audit.Publisher
 	if len(publishers) > 0 {
 		publisher = publishers[0]
@@ -75,7 +72,10 @@ func (s *Server) ExpandURL(ctx context.Context, req *shortenerpb.URLExpandReques
 		return nil, status.Error(codes.NotFound, "url not found")
 	}
 
-	userID, _ := userIDFromMetadata(ctx)
+	userID, err := ensureUserID(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to issue auth token")
+	}
 	s.publishAuditEvent(ctx, audit.ActionFollow, userID, result)
 
 	return &shortenerpb.URLExpandResponse{Result: result}, nil
@@ -119,7 +119,11 @@ func ensureUserID(ctx context.Context) (string, error) {
 	}
 
 	_, userID, issueErr := issueAuthHeader(ctx)
-	return userID, issueErr
+	if issueErr != nil {
+		return "", fmt.Errorf("issue auth header: %w", issueErr)
+	}
+
+	return userID, nil
 }
 
 var errMissingAuthorization = errors.New("missing authorization")
