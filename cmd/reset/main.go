@@ -9,6 +9,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -148,6 +149,12 @@ func (v *{{ .ReceiverType }}) Reset() {
 var generatedSourceTmpl = template.Must(template.New("generated source").Parse(generatedSourceTemplate))
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	flag.Parse()
 
 	root := "."
@@ -157,16 +164,16 @@ func main() {
 
 	packages, err := scanPackages(root)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "scan packages: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("scan packages: %w", err)
 	}
 
 	for _, pkg := range packages {
 		if err := generatePackage(pkg); err != nil {
-			fmt.Fprintf(os.Stderr, "generate %s: %v\n", pkg.dir, err)
-			os.Exit(1)
+			return fmt.Errorf("generate %s: %w", pkg.dir, err)
 		}
 	}
+
+	return nil
 }
 
 func scanPackages(root string) ([]packageInfo, error) {
