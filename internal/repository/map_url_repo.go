@@ -196,6 +196,13 @@ func (r *MapURLRepo) CountURLs(ctx context.Context) (int, error) {
 	return len(r.urls), nil
 }
 
+func (r *MapURLRepo) CountUsers(ctx context.Context) (int, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return len(r.userURLs), nil
+}
+
 func (r *MapURLRepo) DeleteUserURLs(ctx context.Context, userID string, shortIDs []string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

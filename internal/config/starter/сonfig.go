@@ -11,6 +11,7 @@ import (
 // Config stores runtime settings for the shortener server.
 type Config struct {
 	ServerAddress   string
+	GRPCAddress     string
 	BaseURL         string
 	FileStoragePath string
 	DatabaseDSN     string
@@ -18,10 +19,12 @@ type Config struct {
 	AuditFile       string
 	AuditURL        string
 	EnableHTTPS     bool
+	TrustedSubnet   string
 }
 
 type fileConfig struct {
 	ServerAddress   *string `json:"server_address"`
+	GRPCAddress     *string `json:"grpc_address"`
 	BaseURL         *string `json:"base_url"`
 	FileStoragePath *string `json:"file_storage_path"`
 	DatabaseDSN     *string `json:"database_dsn"`
@@ -29,6 +32,7 @@ type fileConfig struct {
 	AuditFile       *string `json:"audit_file"`
 	AuditURL        *string `json:"audit_url"`
 	EnableHTTPS     *bool   `json:"enable_https"`
+	TrustedSubnet   *string `json:"trusted_subnet"`
 }
 
 // Parse reads configuration values from a file, flags and environment variables.
@@ -37,6 +41,7 @@ func Parse() (Config, error) {
 	configPath := ""
 
 	flag.StringVar(&cfg.ServerAddress, "a", cfg.ServerAddress, "address to run HTTP server")
+	flag.StringVar(&cfg.GRPCAddress, "g", cfg.GRPCAddress, "address to run gRPC server")
 	flag.StringVar(&cfg.BaseURL, "b", cfg.BaseURL, "base address for shortened URL")
 	flag.StringVar(&cfg.FileStoragePath, "f", cfg.FileStoragePath, "file storage path")
 	flag.StringVar(&cfg.DatabaseDSN, "d", cfg.DatabaseDSN, "database connection params")
@@ -44,6 +49,7 @@ func Parse() (Config, error) {
 	flag.StringVar(&cfg.AuditFile, "audit-file", cfg.AuditFile, "file path for audit log receiver")
 	flag.StringVar(&cfg.AuditURL, "audit-url", cfg.AuditURL, "URL for remote audit log receiver")
 	flag.BoolVar(&cfg.EnableHTTPS, "s", cfg.EnableHTTPS, "enable HTTPS server")
+	flag.StringVar(&cfg.TrustedSubnet, "t", cfg.TrustedSubnet, "trusted subnet in CIDR notation")
 	flag.StringVar(&configPath, "c", "", "config file path")
 	flag.StringVar(&configPath, "config", "", "config file path")
 	if err := flag.CommandLine.Parse(os.Args[1:]); err != nil {
@@ -73,6 +79,7 @@ func Parse() (Config, error) {
 func defaultConfig() Config {
 	return Config{
 		ServerAddress:   "localhost:8080",
+		GRPCAddress:     "localhost:3200",
 		BaseURL:         "http://localhost:8080",
 		FileStoragePath: "/tmp/url-storage.json",
 		AuthSecret:      "secretkey",
@@ -102,6 +109,9 @@ func applyFileConfig(cfg *Config, path string) error {
 	if fileCfg.ServerAddress != nil {
 		cfg.ServerAddress = *fileCfg.ServerAddress
 	}
+	if fileCfg.GRPCAddress != nil {
+		cfg.GRPCAddress = *fileCfg.GRPCAddress
+	}
 	if fileCfg.BaseURL != nil {
 		cfg.BaseURL = *fileCfg.BaseURL
 	}
@@ -123,6 +133,9 @@ func applyFileConfig(cfg *Config, path string) error {
 	if fileCfg.EnableHTTPS != nil {
 		cfg.EnableHTTPS = *fileCfg.EnableHTTPS
 	}
+	if fileCfg.TrustedSubnet != nil {
+		cfg.TrustedSubnet = *fileCfg.TrustedSubnet
+	}
 
 	return nil
 }
@@ -130,6 +143,9 @@ func applyFileConfig(cfg *Config, path string) error {
 func applyDefinedFlags(cfg *Config, flagsCfg Config, definedFlags map[string]bool) {
 	if definedFlags["a"] {
 		cfg.ServerAddress = flagsCfg.ServerAddress
+	}
+	if definedFlags["g"] {
+		cfg.GRPCAddress = flagsCfg.GRPCAddress
 	}
 	if definedFlags["b"] {
 		cfg.BaseURL = flagsCfg.BaseURL
@@ -152,11 +168,18 @@ func applyDefinedFlags(cfg *Config, flagsCfg Config, definedFlags map[string]boo
 	if definedFlags["s"] {
 		cfg.EnableHTTPS = flagsCfg.EnableHTTPS
 	}
+	if definedFlags["t"] {
+		cfg.TrustedSubnet = flagsCfg.TrustedSubnet
+	}
 }
 
 func applyEnv(cfg *Config) {
 	if envServerAddr := os.Getenv("SERVER_ADDRESS"); envServerAddr != "" {
 		cfg.ServerAddress = envServerAddr
+	}
+
+	if envGRPCAddr := os.Getenv("GRPC_ADDRESS"); envGRPCAddr != "" {
+		cfg.GRPCAddress = envGRPCAddr
 	}
 
 	if envBaseURL := os.Getenv("BASE_URL"); envBaseURL != "" {
@@ -186,5 +209,9 @@ func applyEnv(cfg *Config) {
 	if envEnableHTTPS := os.Getenv("ENABLE_HTTPS"); envEnableHTTPS != "" {
 		enableHTTPS, err := strconv.ParseBool(envEnableHTTPS)
 		cfg.EnableHTTPS = err != nil || enableHTTPS
+	}
+
+	if envTrustedSubnet := os.Getenv("TRUSTED_SUBNET"); envTrustedSubnet != "" {
+		cfg.TrustedSubnet = envTrustedSubnet
 	}
 }

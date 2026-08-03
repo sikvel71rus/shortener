@@ -209,6 +209,15 @@ func (r *PostgresRepo) CountURLs(ctx context.Context) (int, error) {
 	return count, nil
 }
 
+func (r *PostgresRepo) CountUsers(ctx context.Context) (int, error) {
+	var count int
+	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(DISTINCT user_id) FROM user_urls").Scan(&count); err != nil {
+		return 0, err
+	}
+
+	return count, nil
+}
+
 func (r *PostgresRepo) getShortIDByOriginalURLQuerier(ctx context.Context, querier queryRower, originalURL string) (string, error) {
 	var id string
 	err := querier.QueryRowContext(ctx,

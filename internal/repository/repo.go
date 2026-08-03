@@ -15,6 +15,7 @@ type URLRepo interface {
 	GetUserURLs(ctx context.Context, userID string) ([]model.UserURL, error)
 	DeleteUserURLs(ctx context.Context, userID string, shortIDs []string) error
 	CountURLs(ctx context.Context) (int, error)
+	CountUsers(ctx context.Context) (int, error)
 	Ping(ctx context.Context) error
 	Close() error
 }

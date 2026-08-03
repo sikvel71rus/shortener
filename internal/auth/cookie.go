@@ -42,12 +42,7 @@ func SetSecret(secret string) error {
 
 // NewSignedCookie creates a new signed auth cookie and returns its user ID.
 func NewSignedCookie() (*http.Cookie, string, error) {
-	userID, err := generateUserID()
-	if err != nil {
-		return nil, "", err
-	}
-
-	token, err := BuildToken(userID)
+	token, userID, err := NewToken()
 	if err != nil {
 		return nil, "", err
 	}
@@ -58,6 +53,21 @@ func NewSignedCookie() (*http.Cookie, string, error) {
 		Path:     "/",
 		HttpOnly: true,
 	}, userID, nil
+}
+
+// NewToken creates a signed authorization token and returns its user ID.
+func NewToken() (string, string, error) {
+	userID, err := generateUserID()
+	if err != nil {
+		return "", "", err
+	}
+
+	token, err := BuildToken(userID)
+	if err != nil {
+		return "", "", err
+	}
+
+	return token, userID, nil
 }
 
 // BuildToken signs the provided user ID and returns a cookie token value.

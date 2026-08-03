@@ -36,6 +36,7 @@ type mockURLService struct {
 	shortenBatchFunc func(ctx context.Context, batch []model.BatchRequest, userID string) ([]model.BatchResponse, error)
 	getUserURLsFunc  func(ctx context.Context, userID string) ([]model.UserURL, error)
 	countURLsFunc    func(ctx context.Context) (int, error)
+	countUsersFunc   func(ctx context.Context) (int, error)
 	deleteUserURLsFn func(ctx context.Context, userID string, shortIDs []string) error
 	pingFunc         func(ctx context.Context) error
 }
@@ -76,6 +77,13 @@ func (m *mockURLService) DeleteUserURLs(ctx context.Context, userID string, shor
 func (m *mockURLService) CountURLs(ctx context.Context) (int, error) {
 	if m.countURLsFunc != nil {
 		return m.countURLsFunc(ctx)
+	}
+	return 0, nil
+}
+
+func (m *mockURLService) CountUsers(ctx context.Context) (int, error) {
+	if m.countUsersFunc != nil {
+		return m.countUsersFunc(ctx)
 	}
 	return 0, nil
 }
@@ -416,4 +424,88 @@ func TestURLHandler_DeleteUserURLsHandler(t *testing.T) {
 	defer res.Body.Close()
 
 	assert.Equal(t, http.StatusAccepted, res.StatusCode)
+}
+
+func TestURLHandler_StatsHandler(t *testing.T) {
+	tests := []struct {
+		name          string
+		trustedSubnet string
+		realIP        string
+		countURLsErr  error
+		countUsersErr error
+		wantStatus    int
+		wantBody      string
+	}{
+		{
+			name:          "trusted IP",
+			trustedSubnet: "192.168.1.0/24",
+			realIP:        "192.168.1.42",
+			wantStatus:    http.StatusOK,
+			wantBody:      `{"urls":5,"users":3}` + "\n",
+		},
+		{
+			name:          "IP outside trusted subnet",
+			trustedSubnet: "192.168.1.0/24",
+			realIP:        "10.0.0.1",
+			wantStatus:    http.StatusForbidden,
+		},
+		{
+			name:       "empty trusted subnet",
+			realIP:     "192.168.1.42",
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:          "missing real IP",
+			trustedSubnet: "192.168.1.0/24",
+			wantStatus:    http.StatusForbidden,
+		},
+		{
+			name:          "invalid real IP",
+			trustedSubnet: "192.168.1.0/24",
+			realIP:        "not-an-ip",
+			wantStatus:    http.StatusForbidden,
+		},
+		{
+			name:          "URL counter error",
+			trustedSubnet: "192.168.1.0/24",
+			realIP:        "192.168.1.42",
+			countURLsErr:  errors.New("storage error"),
+			wantStatus:    http.StatusInternalServerError,
+		},
+		{
+			name:          "user counter error",
+			trustedSubnet: "192.168.1.0/24",
+			realIP:        "192.168.1.42",
+			countUsersErr: errors.New("storage error"),
+			wantStatus:    http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := &mockURLService{
+				countURLsFunc: func(ctx context.Context) (int, error) {
+					return 5, tt.countURLsErr
+				},
+				countUsersFunc: func(ctx context.Context) (int, error) {
+					return 3, tt.countUsersErr
+				},
+			}
+			h := NewURLHandlerWithTrustedSubnet(srv, tt.trustedSubnet)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/internal/stats", nil)
+			if tt.realIP != "" {
+				req.Header.Set(realIPHeader, tt.realIP)
+			}
+			w := httptest.NewRecorder()
+
+			h.StatsHandler(w, req)
+
+			res := w.Result()
+			defer res.Body.Close()
+
+			assert.Equal(t, tt.wantStatus, res.StatusCode)
+			assert.Equal(t, tt.wantBody, w.Body.String())
+		})
+	}
 }

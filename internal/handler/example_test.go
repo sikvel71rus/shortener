@@ -22,6 +22,7 @@ type exampleURLService struct {
 	getUserURLs    func(ctx context.Context, userID string) ([]model.UserURL, error)
 	deleteUserURLs func(ctx context.Context, userID string, shortIDs []string) error
 	countURLs      func(ctx context.Context) (int, error)
+	countUsers     func(ctx context.Context) (int, error)
 }
 
 func (s exampleURLService) GetOriginalURL(ctx context.Context, id string) (string, error) {
@@ -50,6 +51,10 @@ func (s exampleURLService) DeleteUserURLs(ctx context.Context, userID string, sh
 
 func (s exampleURLService) CountURLs(ctx context.Context) (int, error) {
 	return s.countURLs(ctx)
+}
+
+func (s exampleURLService) CountUsers(ctx context.Context) (int, error) {
+	return s.countUsers(ctx)
 }
 
 func ExampleURLHandler_PostURLHandler() {

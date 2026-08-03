@@ -160,6 +160,11 @@ func (s *URLService) CountURLs(ctx context.Context) (int, error) {
 	return s.repo.CountURLs(ctx)
 }
 
+// CountUsers returns the total number of users that have shortened URLs.
+func (s *URLService) CountUsers(ctx context.Context) (int, error) {
+	return s.repo.CountUsers(ctx)
+}
+
 func (s *URLService) processDeleteQueue() {
 	defer s.wg.Done()
 
